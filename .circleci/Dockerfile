@@ -8,4 +8,5 @@ RUN sudo apt-get update && \
 
 # Make go binaries available from our path
 ENV PATH $PATH:/home/circleci/go/bin
-RUN go get -u github.com/golang/dep/cmd/dep
+RUN go get -u github.com/golang/dep/cmd/dep && \
+      go get -u github.com/golang/lint/golint
