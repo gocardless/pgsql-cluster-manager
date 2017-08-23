@@ -1,0 +1,46 @@
+version: 2
+
+references:
+  bundle_install: &bundle_install
+    run:
+      name: Bundle
+      command: gem install bundler && bundle install --path vendor/bundle --jobs=4 --retry=3
+
+  cache_bundle_for_lockfile: &cache_bundle_for_lockfile
+    save_cache:
+      key: v3-ruby2.4.1-Gemfile-{{ checksum "Gemfile.lock" }}
+      paths:
+        - vendor/bundle
+
+  cache_bundle: &cache_bundle
+    save_cache:
+      key: v3-ruby2.4.1-Gemfile
+      paths:
+        - vendor/bundle
+
+  restore_bundle: &restore_bundle
+    restore_cache:
+      keys:
+        - v3-ruby2.4.1-Gemfile-{{ checksum "Gemfile.lock" }}
+        - v3-ruby2.4.1-Gemfile
+
+jobs:
+  build:
+    docker:
+      - image: gocardless/pgsql-novips-circleci:latest
+    working_directory: /home/circleci/go/src/github.com/gocardless/pgsql-novips
+    steps:
+      - checkout
+      - *restore_bundle
+      - *bundle_install
+      - *cache_bundle_for_lockfile
+      - *cache_bundle
+      - run:
+          name: Install Golang dependencies
+          command: dep ensure
+      - run:
+          name: Rubocop
+          command: bundle exec rubocop
+      - run:
+          name: Unit test and build deb
+          command: make deb
