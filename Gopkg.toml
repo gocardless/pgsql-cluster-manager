@@ -1,0 +1,11 @@
+[[constraint]]
+  name = "github.com/coreos/etcd"
+  version = "3.2.6"
+
+[[constraint]]
+  name = "github.com/go-pg/pg"
+  version = "6.4.21"
+
+[[constraint]]
+  name = "github.com/sirupsen/logrus"
+  version = "1.0.3"
