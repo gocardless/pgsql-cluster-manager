@@ -10,9 +10,11 @@ build:
 	$(BUILD_COMMAND) -o $(PROG) *.go
 
 test:
+	go test -v $(PACKAGES)
+
+lint:
 	golint *.go $(PACKAGES)
 	go vet *.go $(PACKAGES)
-	go test $(PACKAGES)
 
 deb: $(PROG).linux_amd64
 	rm -fv *.deb
@@ -23,7 +25,7 @@ deb: $(PROG).linux_amd64
 		--maintainer "GoCardless Engineering <engineering@gocardless.com>" \
 		$<=$(PREFIX)/bin/$(PROG)
 
-$(PROG).linux_amd64: test
+$(PROG).linux_amd64: lint test
 	GOOS=linux GOARCH=amd64 $(BUILD_COMMAND) -o $(PROG).linux_amd64 *.go
 
 publish-circleci-dockerfile:

@@ -4,11 +4,16 @@ import (
 	"fmt"
 	"os"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 )
 
 func main() {
+	App(logrus.StandardLogger()).Run(os.Args)
+}
+
+// App generates a command-line application that is the entrypoint for pgsql-novips
+func App(log *logrus.Logger) *cli.App {
 	app := cli.NewApp()
 
 	app.Name = "pgsql-novips"
@@ -69,8 +74,11 @@ func main() {
 			Aliases: []string{},
 			Usage:   "Zero-downtime promotion of sync to master",
 			Action: func(c *cli.Context) error {
-				log.Info("Bailing, you haven't implemented 'migrate' yet")
-				return nil
+				if err := checkMissingFlags(c); err != nil {
+					return cli.NewExitError(err, 1)
+				}
+
+				return cli.NewExitError("Bailing, you haven't implemented 'migrate' yet", 1)
 			},
 		},
 		{
@@ -92,8 +100,11 @@ func main() {
 				},
 			},
 			Action: func(c *cli.Context) error {
-				log.Info("Bailing, you haven't implemented 'proxy' yet")
-				return nil
+				if err := checkMissingFlags(c); err != nil {
+					return cli.NewExitError(err, 1)
+				}
+
+				return cli.NewExitError("Bailing, you haven't implemented 'proxy' yet", 1)
 			},
 		},
 		{
@@ -121,31 +132,32 @@ func main() {
 				},
 			},
 			Action: func(c *cli.Context) error {
-				assertFlagsValue(c, c.GlobalFlagNames()...)
-				assertFlagsValue(c, c.FlagNames()...)
+				if err := checkMissingFlags(c); err != nil {
+					return cli.NewExitError(err, 1)
+				}
 
-				log.Info("Bailing, you haven't implemented 'proxy' yet")
-				return nil
+				return cli.NewExitError("Bailing, you haven't implemented 'cluster' yet", 1)
 			},
 		},
 	}
 
-	app.Run(os.Args)
+	return app
 }
 
-func assertFlagsValue(c *cli.Context, flags ...string) {
+func checkMissingFlags(c *cli.Context) error {
+	var err error
 	var missing []string
 	var nullString string
 
-	for _, flag := range flags {
+	for _, flag := range append(c.FlagNames(), c.GlobalFlagNames()...) {
 		if c.String(flag) == nullString && c.GlobalString(flag) == nullString {
 			missing = append(missing, flag)
 		}
 	}
 
 	if len(missing) > 0 {
-		log.WithFields(log.Fields{
-			"missing": fmt.Sprintf("%v", missing),
-		}).Fatal("Exiting with error, missing configuration")
+		err = fmt.Errorf("Missing configuration flags: %v", missing)
 	}
+
+	return err
 }
