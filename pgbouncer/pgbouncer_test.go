@@ -9,6 +9,18 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestPsqlOptions_WithValidConfig(t *testing.T) {
+	bouncer := PGBouncer{
+		ConfigFile:         "/etc/pgbouncer/pgbouncer.ini",
+		ConfigFileTemplate: "./fixtures/pgbouncer.ini.template",
+	}
+
+	options, err := bouncer.psqlOptions()
+
+	assert.Nil(t, err, "expected no error")
+	assert.Equal(t, options.Addr, "/var/run/postgresql/.s.PGSQL.6432")
+}
+
 func TestGenerateConfig_WithInvalidConfigTemplateErrors(t *testing.T) {
 	bouncer := PGBouncer{
 		ConfigFile:         "/etc/pgbouncer/pgbouncer.ini",
@@ -26,7 +38,7 @@ func TestGenerateConfig_WithInvalidConfigTemplateErrors(t *testing.T) {
 }
 
 func TestGenerateConfig_WritesConfigWithHost(t *testing.T) {
-	tempConfigFile := makeTempConfigFile(t)
+	tempConfigFile := makeTempFile(t, "pgbouncer-config-")
 	defer os.Remove(tempConfigFile.Name())
 
 	bouncer := PGBouncer{
@@ -42,9 +54,9 @@ func TestGenerateConfig_WritesConfigWithHost(t *testing.T) {
 		"postgres = host=curly.db.ams.gc.cx", "expected host to be in generated config")
 }
 
-func makeTempConfigFile(t *testing.T) *os.File {
-	tempConfigFile, err := ioutil.TempFile("", "pgbouncer-config-")
-	assert.Nil(t, err, "failed to create temporary config file")
+func makeTempFile(t *testing.T, prefix string) *os.File {
+	tempFile, err := ioutil.TempFile("", prefix)
+	assert.Nil(t, err, "failed to create temporary file")
 
-	return tempConfigFile
+	return tempFile
 }
