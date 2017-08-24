@@ -10,7 +10,7 @@ import (
 )
 
 func TestPsqlOptions_WithValidConfig(t *testing.T) {
-	bouncer := PGBouncer{
+	bouncer := pgBouncer{
 		ConfigFile:         "/etc/pgbouncer/pgbouncer.ini",
 		ConfigFileTemplate: "./fixtures/pgbouncer.ini.template",
 	}
@@ -22,7 +22,7 @@ func TestPsqlOptions_WithValidConfig(t *testing.T) {
 }
 
 func TestGenerateConfig_WithInvalidConfigTemplateErrors(t *testing.T) {
-	bouncer := PGBouncer{
+	bouncer := pgBouncer{
 		ConfigFile:         "/etc/pgbouncer/pgbouncer.ini",
 		ConfigFileTemplate: "/this/does/not/exist",
 	}
@@ -41,7 +41,7 @@ func TestGenerateConfig_WritesConfigWithHost(t *testing.T) {
 	tempConfigFile := makeTempFile(t, "pgbouncer-config-")
 	defer os.Remove(tempConfigFile.Name())
 
-	bouncer := PGBouncer{
+	bouncer := pgBouncer{
 		ConfigFile:         tempConfigFile.Name(),
 		ConfigFileTemplate: "./fixtures/pgbouncer.ini.template",
 	}
