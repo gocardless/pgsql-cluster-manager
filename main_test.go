@@ -4,46 +4,38 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/suite"
 	"github.com/urfave/cli"
 )
 
-type assertFlagsTestSuite struct {
-	suite.Suite
-	app *cli.App
-}
-
-func (suite *assertFlagsTestSuite) SetupTest() {
-	suite.app = cli.NewApp()
-	suite.app.Flags = []cli.Flag{cli.StringFlag{Name: "global"}}
-	suite.app.Commands = []cli.Command{
+func mockApp() *cli.App {
+	app := cli.NewApp()
+	app.Flags = []cli.Flag{cli.StringFlag{Name: "global"}}
+	app.Commands = []cli.Command{
 		{
 			Name:   "command",
 			Flags:  []cli.Flag{cli.StringFlag{Name: "local"}},
 			Action: checkMissingFlags,
 		},
 	}
+
+	return app
 }
 
-func (suite *assertFlagsTestSuite) TestSuccessWithAllFlags() {
-	err := suite.app.Run([]string{"", "--global", "g", "command", "--local", "l"})
-	assert.Nil(suite.T(), err, "should not return error")
+func TestSuccessWithAllFlags(t *testing.T) {
+	err := mockApp().Run([]string{"", "--global", "g", "command", "--local", "l"})
+	assert.Nil(t, err, "should not return error")
 }
 
-func (suite *assertFlagsTestSuite) TestErrorWhenMissingGlobal() {
-	err := suite.app.Run([]string{"", "command", "--local", "l"})
-	if assert.Error(suite.T(), err, "did not return an error") {
-		assert.Regexp(suite.T(), "Missing configuration flags.*global", err.Error())
+func TestErrorWhenMissingGlobal(t *testing.T) {
+	err := mockApp().Run([]string{"", "command", "--local", "l"})
+	if assert.Error(t, err, "did not return an error") {
+		assert.Regexp(t, "Missing configuration flags.*global", err.Error())
 	}
 }
 
-func (suite *assertFlagsTestSuite) TestErrorWhenMissingLocal() {
-	err := suite.app.Run([]string{"", "--global", "g", "command"})
-	if assert.Error(suite.T(), err, "did not return an error") {
-		assert.Regexp(suite.T(), "Missing configuration flags.*local", err.Error())
+func TestErrorWhenMissingLocal(t *testing.T) {
+	err := mockApp().Run([]string{"", "--global", "g", "command"})
+	if assert.Error(t, err, "did not return an error") {
+		assert.Regexp(t, "Missing configuration flags.*local", err.Error())
 	}
-}
-
-func TestAssertFlagsTestSuite(t *testing.T) {
-	suite.Run(t, new(assertFlagsTestSuite))
 }
