@@ -2,7 +2,7 @@ VERSION=0.0.1
 PROG=pgsql-novips
 PREFIX=/usr/local
 BUILD_COMMAND=go build -ldflags "-X main.version=$(VERSION)"
-PACKAGES=
+PACKAGES=$(shell go list ./... | grep -v /vendor/)
 
 .PHONY: build test clean circleci-dockerfile publish-circleci-dockerfile
 
@@ -13,8 +13,7 @@ test:
 	go test -v $(PACKAGES)
 
 lint:
-	golint *.go $(PACKAGES)
-	go vet *.go $(PACKAGES)
+	golint -set_exit_status $(PACKAGES)
 
 deb: $(PROG).linux_amd64
 	rm -fv *.deb

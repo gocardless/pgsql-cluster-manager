@@ -21,7 +21,7 @@
 
 [[projects]]
   name = "github.com/stretchr/testify"
-  packages = ["assert","require","suite"]
+  packages = ["assert"]
   revision = "69483b4bd14f5845b5a1e55bca19e954e827f1d0"
   version = "v1.1.4"
 
@@ -46,6 +46,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "e0bd791e9986ad9a10f47de93b9f9fa64908d7f21de2e82b03d0f9f274bc5ba8"
+  inputs-digest = "40e3fc7b8745e036dd9b6e1ba43da6500a8384cc30fc468d344ed38749324420"
   solver-name = "gps-cdcl"
   solver-version = 1
