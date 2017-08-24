@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 
 	"github.com/gocardless/pgsql-novips/errors"
-	"github.com/sirupsen/logrus"
 )
 
 // PGBouncer represents a set of configuration required to manage a PGBouncer instance,
@@ -40,8 +39,8 @@ func (b *PGBouncer) configTemplate() (*template.Template, error) {
 	if err != nil {
 		return nil, errors.NewErrorWithFields(
 			"failed to read PGBouncer config template file",
-			&logrus.Fields{
-				"path":  b.ConfigFile,
+			&map[string]interface{}{
+				"path":  b.ConfigFileTemplate,
 				"error": err,
 			},
 		)
