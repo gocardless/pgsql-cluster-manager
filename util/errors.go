@@ -1,4 +1,4 @@
-package errors
+package util
 
 import "errors"
 
@@ -6,10 +6,10 @@ import "errors"
 // logged
 type ErrorWithFields struct {
 	error
-	Fields *map[string]interface{}
+	Fields map[string]interface{}
 }
 
 // NewErrorWithFields returns a new ErrorWithFields struct
-func NewErrorWithFields(message string, fields *map[string]interface{}) ErrorWithFields {
+func NewErrorWithFields(message string, fields map[string]interface{}) ErrorWithFields {
 	return ErrorWithFields{errors.New(message), fields}
 }
