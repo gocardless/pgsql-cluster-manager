@@ -16,14 +16,14 @@ func Reload(b PGBouncer, timeout time.Duration) error {
 
 	_, err = psql.Exec(`RELOAD;`)
 
-	if err == nil {
-		return nil
+	if err != nil {
+		return util.NewErrorWithFields(
+			"failed to reload PGBouncer",
+			map[string]interface{}{
+				"error": err.Error(),
+			},
+		)
 	}
 
-	return util.NewErrorWithFields(
-		"failed to reload PGBouncer",
-		map[string]interface{}{
-			"error": err.Error(),
-		},
-	)
+	return nil
 }
