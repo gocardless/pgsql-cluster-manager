@@ -34,7 +34,7 @@ func TestGenerateConfig_WithInvalidConfigTemplateErrors(t *testing.T) {
 
 	assert.Error(t, err, "expected config generation to fail")
 	assert.Equal(t, "failed to read PGBouncer config template file", err.Error())
-	assert.Equal(t, "/this/does/not/exist", (*ferr.Fields)["path"])
+	assert.Equal(t, "/this/does/not/exist", ferr.Fields["path"])
 }
 
 func TestGenerateConfig_WritesConfigWithHost(t *testing.T) {

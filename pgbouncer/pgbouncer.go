@@ -53,7 +53,7 @@ func (b pgBouncer) Config() (map[string]string, error) {
 	if err != nil {
 		return nil, util.NewErrorWithFields(
 			"failed to read PGBouncer config template file",
-			&map[string]interface{}{
+			map[string]interface{}{
 				"path":  b.ConfigFileTemplate,
 				"error": err,
 			},
@@ -123,7 +123,7 @@ func (b pgBouncer) psqlOptions() (*pg.Options, error) {
 	if socketDir == nullString || portStr == nullString {
 		return nil, util.NewErrorWithFields(
 			"failed to parse required config from PGBouncer config template",
-			&map[string]interface{}{
+			map[string]interface{}{
 				"socketDir":          socketDir,
 				"portStr":            portStr,
 				"port":               port,
@@ -147,7 +147,7 @@ func (b pgBouncer) createTemplate() (*template.Template, error) {
 	if err != nil {
 		return nil, util.NewErrorWithFields(
 			"failed to read PGBouncer config template file",
-			&map[string]interface{}{
+			map[string]interface{}{
 				"path":  b.ConfigFileTemplate,
 				"error": err,
 			},
