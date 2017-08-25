@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/gocardless/pgsql-novips/errors"
+	"github.com/gocardless/pgsql-novips/util"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -28,9 +28,9 @@ func TestGenerateConfig_WithInvalidConfigTemplateErrors(t *testing.T) {
 	}
 
 	err := bouncer.GenerateConfig("curly.db.ams.gc.cx")
-	assert.IsType(t, errors.ErrorWithFields{}, err, "expected error to be ErrorWithFields")
+	assert.IsType(t, util.ErrorWithFields{}, err, "expected error to be ErrorWithFields")
 
-	ferr, _ := err.(errors.ErrorWithFields)
+	ferr, _ := err.(util.ErrorWithFields)
 
 	assert.Error(t, err, "expected config generation to fail")
 	assert.Equal(t, "failed to read PGBouncer config template file", err.Error())

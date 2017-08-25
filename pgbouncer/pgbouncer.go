@@ -14,7 +14,7 @@ import (
 
 	"github.com/go-pg/pg"
 	"github.com/go-pg/pg/orm"
-	"github.com/gocardless/pgsql-novips/errors"
+	"github.com/gocardless/pgsql-novips/util"
 )
 
 // PGBouncer provides an interface to interact with a local PGBouncer service
@@ -51,7 +51,7 @@ func (b pgBouncer) Config() (map[string]string, error) {
 	configFile, err := os.Open(b.ConfigFileTemplate)
 
 	if err != nil {
-		return nil, errors.NewErrorWithFields(
+		return nil, util.NewErrorWithFields(
 			"failed to read PGBouncer config template file",
 			&map[string]interface{}{
 				"path":  b.ConfigFileTemplate,
@@ -121,7 +121,7 @@ func (b pgBouncer) psqlOptions() (*pg.Options, error) {
 	port, _ := strconv.Atoi(strings.TrimSpace(portStr))
 
 	if socketDir == nullString || portStr == nullString {
-		return nil, errors.NewErrorWithFields(
+		return nil, util.NewErrorWithFields(
 			"failed to parse required config from PGBouncer config template",
 			&map[string]interface{}{
 				"socketDir":          socketDir,
@@ -145,7 +145,7 @@ func (b pgBouncer) createTemplate() (*template.Template, error) {
 	configTemplate, err := ioutil.ReadFile(b.ConfigFileTemplate)
 
 	if err != nil {
-		return nil, errors.NewErrorWithFields(
+		return nil, util.NewErrorWithFields(
 			"failed to read PGBouncer config template file",
 			&map[string]interface{}{
 				"path":  b.ConfigFileTemplate,
