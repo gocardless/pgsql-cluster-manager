@@ -13,7 +13,7 @@ test:
 	go test -v $(PACKAGES)
 
 lint:
-	golint -set_exit_status $(PACKAGES)
+	golint $(PACKAGES)
 
 deb: $(PROG).linux_amd64
 	rm -fv *.deb
