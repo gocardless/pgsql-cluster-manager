@@ -1,9 +1,16 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"os/signal"
+	"strings"
+	"syscall"
+	"time"
 
+	"github.com/coreos/etcd/clientv3"
+	"github.com/gocardless/pgsql-novips/daemon"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 )
@@ -24,6 +31,12 @@ func App(log *logrus.Logger) *cli.App {
 			Name:   "client-id",
 			Usage:  "Unique identifier for heartbeats (typically hostname)",
 			EnvVar: "CLIENT_ID",
+		},
+		cli.StringFlag{
+			Name:   "etcd-namespace",
+			Usage:  "Prefix to all etcd accesses",
+			EnvVar: "ETCD_NAMESPACE",
+			Value:  "/postgres",
 		},
 		cli.StringFlag{
 			Name:   "etcd-hosts",
@@ -54,18 +67,6 @@ func App(log *logrus.Logger) *cli.App {
 			EnvVar: "ETCD_HEARTBEAT_TIMEOUT",
 			Value:  10,
 		},
-		cli.StringFlag{
-			Name:   "pgbouncer-config",
-			Usage:  "Path to place rendered PGBouncer config",
-			EnvVar: "PGBOUNCER_CONFIG",
-			Value:  "/etc/pgbouncer/config.ini",
-		},
-		cli.StringFlag{
-			Name:   "pgbouncer-config-template",
-			Usage:  "Template file for PGBouncer config",
-			EnvVar: "PGBOUNCER_CONFIG_TEMPLATE",
-			Value:  "/etc/pgbouncer/config.ini.template",
-		},
 	}
 
 	app.Commands = []cli.Command{
@@ -87,6 +88,18 @@ func App(log *logrus.Logger) *cli.App {
 			Usage:   "Manage PGBouncer to proxy connections to host in etcd",
 			Flags: []cli.Flag{
 				cli.StringFlag{
+					Name:   "pgbouncer-config",
+					Usage:  "Path to place rendered PGBouncer config",
+					EnvVar: "PGBOUNCER_CONFIG",
+					Value:  "/etc/pgbouncer/config.ini",
+				},
+				cli.StringFlag{
+					Name:   "pgbouncer-config-template",
+					Usage:  "Template file for PGBouncer config",
+					EnvVar: "PGBOUNCER_CONFIG_TEMPLATE",
+					Value:  "/etc/pgbouncer/config.ini.template",
+				},
+				cli.StringFlag{
 					Name:   "etcd-heartbeat-path",
 					Usage:  "Path in which to store client heartbeat",
 					EnvVar: "PROXY_ETCD_HEARTBEAT_PATH",
@@ -104,7 +117,26 @@ func App(log *logrus.Logger) *cli.App {
 					return cli.NewExitError(err, 1)
 				}
 
-				return cli.NewExitError("Bailing, you haven't implemented 'proxy' yet", 1)
+				cfg := newEtcdConfig(c)
+				d, err := daemon.New(cfg)
+
+				if err != nil {
+					cli.NewExitError("Failed to initialize daemon", 1)
+				}
+
+				log.Info("Starting daemon...")
+
+				go d.Start(context.Background(), c.GlobalString("etcd-namespace"),
+					daemon.HandlerMap{
+						"/master": func(value string) error {
+							log.WithField("value", value).Info("/master")
+							return nil
+						},
+					},
+				)
+
+				waitForSignal(log, "Received %s, shutting down daemon...")
+				return d.Shutdown()
 			},
 		},
 		{
@@ -142,6 +174,27 @@ func App(log *logrus.Logger) *cli.App {
 	}
 
 	return app
+}
+
+func waitForSignal(log *logrus.Logger, template string) os.Signal {
+	sigc := make(chan os.Signal, 1)
+	signal.Notify(sigc, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+
+	recv := <-sigc
+
+	log.Info(fmt.Sprintf(template, recv))
+
+	return recv
+}
+
+func newEtcdConfig(c *cli.Context) clientv3.Config {
+	hosts := c.GlobalString("etcd-hosts")
+	timeout := c.GlobalInt("etcd-timeout")
+
+	return clientv3.Config{
+		Endpoints:   strings.Split(hosts, ","),
+		DialTimeout: time.Duration(timeout) * time.Second,
+	}
 }
 
 func checkMissingFlags(c *cli.Context) error {
