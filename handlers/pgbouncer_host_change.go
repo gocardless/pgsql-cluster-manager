@@ -21,5 +21,5 @@ func (h PGBouncerHostChange) Run(_, host string) error {
 		return err
 	}
 
-	return pgbouncer.Pause(h.PGBouncer, h.Timeout)
+	return pgbouncer.Reload(h.PGBouncer, h.Timeout)
 }
