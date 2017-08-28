@@ -3,17 +3,12 @@ package pgbouncer
 import (
 	"bufio"
 	"bytes"
-	"fmt"
 	"html/template"
 	"io/ioutil"
 	"os"
 	"regexp"
-	"strconv"
-	"strings"
 	"time"
 
-	"github.com/go-pg/pg"
-	"github.com/go-pg/pg/orm"
 	"github.com/gocardless/pgsql-novips/util"
 )
 
@@ -21,12 +16,8 @@ import (
 type PGBouncer interface {
 	Config() (map[string]string, error)
 	GenerateConfig(string) error
-	Psql(time.Duration) (PsqlExecutor, error)
-}
-
-// PsqlExecutor implements the execution of SQL queries against a Postgres connection
-type PsqlExecutor interface {
-	Exec(interface{}, ...interface{}) (orm.Result, error)
+	Pause() error
+	Reload() error
 }
 
 // PGBouncer represents a set of configuration required to manage a PGBouncer
@@ -34,14 +25,19 @@ type PsqlExecutor interface {
 type pgBouncer struct {
 	ConfigFile         string
 	ConfigFileTemplate string // template that can be rendered with Host value
+	PsqlExecutor
 }
 
 // NewPGBouncer returns a PGBouncer configured around the given configFile and template
-func NewPGBouncer(configFile, configFileTemplate string) PGBouncer {
-	return &pgBouncer{
+func NewPGBouncer(configFile, configFileTemplate string, psqlTimeout time.Duration) PGBouncer {
+	bouncer := pgBouncer{
 		ConfigFile:         configFile,
 		ConfigFileTemplate: configFileTemplate,
 	}
+
+	bouncer.PsqlExecutor = NewPGBouncerExecutor(&bouncer, psqlTimeout)
+
+	return &bouncer
 }
 
 // Config generates a key value map of config parameters from the PGBouncer config
@@ -93,54 +89,6 @@ func (b pgBouncer) GenerateConfig(host string) error {
 	return ioutil.WriteFile(b.ConfigFile, configBuffer.Bytes(), 0644)
 }
 
-// Psql returns a connection to PGBouncers Postgres database that is configured with the
-// specified timeout
-func (b pgBouncer) Psql(timeout time.Duration) (PsqlExecutor, error) {
-	var psql PsqlExecutor
-	psqlOptions, err := b.psqlOptions()
-
-	if err != nil {
-		return psql, err
-	}
-
-	return pg.Connect(psqlOptions).WithTimeout(timeout), err
-}
-
-func (b pgBouncer) psqlOptions() (*pg.Options, error) {
-	var nullString string
-	var config map[string]string
-
-	config, err := b.Config()
-
-	if err != nil {
-		return nil, err
-	}
-
-	socketDir := config["unix_socket_dir"]
-	portStr := config["listen_port"]
-	port, _ := strconv.Atoi(strings.TrimSpace(portStr))
-
-	if socketDir == nullString || portStr == nullString {
-		return nil, util.NewErrorWithFields(
-			"Failed to parse required config from PGBouncer config template",
-			map[string]interface{}{
-				"socketDir":          socketDir,
-				"portStr":            portStr,
-				"port":               port,
-				"configFileTemplate": b.ConfigFileTemplate,
-			},
-		)
-	}
-
-	return &pg.Options{
-		Network:     "unix",
-		User:        "pgbouncer",
-		Database:    "pgbouncer",
-		Addr:        fmt.Sprintf("%s/.s.PGSQL.%d", socketDir, port),
-		ReadTimeout: time.Second,
-	}, nil
-}
-
 func (b pgBouncer) createTemplate() (*template.Template, error) {
 	configTemplate, err := ioutil.ReadFile(b.ConfigFileTemplate)
 
@@ -155,4 +103,49 @@ func (b pgBouncer) createTemplate() (*template.Template, error) {
 	}
 
 	return template.Must(template.New("PGBouncerConfig").Parse(string(configTemplate))), err
+}
+
+type fieldError interface {
+	Field(byte) string
+}
+
+// AlreadyPausedError is the field returned as the error code when PGBouncer is already
+// paused, and you issue a PAUSE;
+const AlreadyPausedError string = "08P01"
+
+// Pause causes PGBouncer to buffer incoming queries while waiting for those currently
+// processing to finish executing. The supplied timeout is applied to the Postgres
+// connection.
+func (b pgBouncer) Pause() error {
+	if _, err := b.PsqlExecutor.Exec(`PAUSE;`); err != nil {
+		if ferr, ok := err.(fieldError); ok {
+			// We get this when PGBouncer tells us we're already paused
+			if ferr.Field('C') == AlreadyPausedError {
+				return nil // ignore the error, as the pause was not required
+			}
+		}
+
+		return util.NewErrorWithFields(
+			"Failed to pause PGBouncer",
+			map[string]interface{}{
+				"error": err.Error(),
+			},
+		)
+	}
+
+	return nil
+}
+
+// Reload will cause PGBouncer to reload configuration and live apply setting changes
+func (b pgBouncer) Reload() error {
+	if _, err := b.PsqlExecutor.Exec(`RELOAD;`); err != nil {
+		return util.NewErrorWithFields(
+			"Failed to reload PGBouncer",
+			map[string]interface{}{
+				"error": err.Error(),
+			},
+		)
+	}
+
+	return nil
 }

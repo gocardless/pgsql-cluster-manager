@@ -1,6 +1,5 @@
 [databases]
 postgres = host={{.Host}} port=6432 pool_size=6
-template1 = host={{.Host}} port=6432 pool_size=6
 
 [pgbouncer]
 logfile = /var/log/postgresql/pgbouncer.log
