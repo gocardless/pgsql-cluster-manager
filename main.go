@@ -135,10 +135,10 @@ func App(logger *logrus.Logger) *cli.App {
 				d.RegisterHandler(
 					c.String("pgbouncer-host-key"),
 					handlers.PGBouncerHostChange{
-						Timeout: time.Duration(c.Int("pgbouncer-timeout")) * time.Second,
 						PGBouncer: pgbouncer.NewPGBouncer(
 							c.String("pgbouncer-config"),
 							c.String("pgbouncer-config-template"),
+							time.Duration(c.Int("pgbouncer-timeout"))*time.Second,
 						),
 					},
 				)

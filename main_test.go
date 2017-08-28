@@ -21,21 +21,23 @@ func mockApp() *cli.App {
 	return app
 }
 
-func TestCheckMissingFlags_SuccessWithAllFlags(t *testing.T) {
-	err := mockApp().Run([]string{"", "--global", "g", "command", "--local", "l"})
-	assert.Nil(t, err, "should not return error")
-}
+func TestCheckMissingFlags(t *testing.T) {
+	t.Run("is successful when all flags present", func(t *testing.T) {
+		err := mockApp().Run([]string{"", "--global", "g", "command", "--local", "l"})
+		assert.Nil(t, err, "should not return error")
+	})
 
-func TestCheckMissingFlags_ErrorWhenMissingGlobal(t *testing.T) {
-	err := mockApp().Run([]string{"", "command", "--local", "l"})
-	if assert.Error(t, err, "did not return an error") {
-		assert.Regexp(t, "Missing configuration flags.*global", err.Error())
-	}
-}
+	t.Run("returns error when missing global", func(t *testing.T) {
+		err := mockApp().Run([]string{"", "command", "--local", "l"})
+		if assert.Error(t, err, "did not return an error") {
+			assert.Regexp(t, "Missing configuration flags.*global", err.Error())
+		}
+	})
 
-func TestCheckMissingFlags_ErrorWhenMissingLocal(t *testing.T) {
-	err := mockApp().Run([]string{"", "--global", "g", "command"})
-	if assert.Error(t, err, "did not return an error") {
-		assert.Regexp(t, "Missing configuration flags.*local", err.Error())
-	}
+	t.Run("returns error when missing local", func(t *testing.T) {
+		err := mockApp().Run([]string{"", "--global", "g", "command"})
+		if assert.Error(t, err, "did not return an error") {
+			assert.Regexp(t, "Missing configuration flags.*local", err.Error())
+		}
+	})
 }

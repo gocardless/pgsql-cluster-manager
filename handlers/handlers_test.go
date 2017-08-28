@@ -22,86 +22,85 @@ type logEntry struct {
 	Data    logrus.Fields
 }
 
-func TestLoggingHandler_WhenSuccessful(t *testing.T) {
-	logger, hook := test.NewNullLogger()
-	handler := FakeHandler{}
-
-	handler.On("Run", "key", "value").Return(nil)
-
-	loggingHandler := NewLoggingHandler(logger, handler)
-	loggingHandler.Run("key", "value")
-
-	handler.AssertExpectations(t)
-
-	expectedEntries := []logEntry{
-		logEntry{
-			Message: "Running handler...",
-			Data: logrus.Fields{
-				"handler": "FakeHandler",
-				"key":     "key",
-				"value":   "value",
+func TestLoggingHandler(t *testing.T) {
+	testCases := []struct {
+		name         string
+		handlerError error
+		logEntries   []logEntry
+	}{
+		{
+			"log when successful",
+			nil,
+			[]logEntry{
+				logEntry{
+					Message: "Running handler...",
+					Data: logrus.Fields{
+						"handler": "FakeHandler",
+						"key":     "key",
+						"value":   "value",
+					},
+				},
+				logEntry{
+					Message: "Finished running handler",
+					Data: logrus.Fields{
+						"handler": "FakeHandler",
+						"key":     "key",
+						"value":   "value",
+					},
+				},
 			},
 		},
-		logEntry{
-			Message: "Finished running handler",
-			Data: logrus.Fields{
-				"handler": "FakeHandler",
-				"key":     "key",
-				"value":   "value",
-			},
-		},
-	}
-
-	for idx, expected := range expectedEntries {
-		assert.Equal(t, logEntry{hook.Entries[idx].Message, hook.Entries[idx].Data}, expected)
-	}
-}
-
-func TestLoggingHandler_WhenErrors(t *testing.T) {
-	logger, hook := test.NewNullLogger()
-	handler := FakeHandler{}
-
-	handler.
-		On("Run", "key", "value").
-		Return(util.NewErrorWithFields(
-			"uh oh",
-			map[string]interface{}{"error": "spaghettios"},
-		))
-
-	loggingHandler := NewLoggingHandler(logger, handler)
-	loggingHandler.Run("key", "value")
-
-	handler.AssertExpectations(t)
-
-	expectedEntries := []logEntry{
-		logEntry{
-			Message: "Running handler...",
-			Data: logrus.Fields{
-				"handler": "FakeHandler",
-				"key":     "key",
-				"value":   "value",
-			},
-		},
-		logEntry{
-			Message: "uh oh",
-			Data: logrus.Fields{
-				"handler": "FakeHandler",
-				"key":     "key",
-				"value":   "value",
-				"error":   "spaghettios",
-			},
-		},
-		logEntry{
-			Message: "Finished running handler",
-			Data: logrus.Fields{
-				"handler": "FakeHandler",
-				"key":     "key",
-				"value":   "value",
+		{
+			"log when fails",
+			util.NewErrorWithFields(
+				"uh oh",
+				map[string]interface{}{"error": "spaghettios"},
+			),
+			[]logEntry{
+				logEntry{
+					Message: "Running handler...",
+					Data: logrus.Fields{
+						"handler": "FakeHandler",
+						"key":     "key",
+						"value":   "value",
+					},
+				},
+				logEntry{
+					Message: "uh oh",
+					Data: logrus.Fields{
+						"handler": "FakeHandler",
+						"key":     "key",
+						"value":   "value",
+						"error":   "spaghettios",
+					},
+				},
+				logEntry{
+					Message: "Finished running handler",
+					Data: logrus.Fields{
+						"handler": "FakeHandler",
+						"key":     "key",
+						"value":   "value",
+					},
+				},
 			},
 		},
 	}
 
-	for idx, expected := range expectedEntries {
-		assert.Equal(t, logEntry{hook.Entries[idx].Message, hook.Entries[idx].Data}, expected)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			logger, hook := test.NewNullLogger()
+			handler := FakeHandler{}
+
+			handler.On("Run", "key", "value").Return(tc.handlerError).Once()
+
+			loggingHandler := NewLoggingHandler(logger, handler)
+			loggingHandler.Run("key", "value")
+
+			handler.AssertExpectations(t)
+
+			for idx, expected := range tc.logEntries {
+				assert.Equal(t, logEntry{hook.Entries[idx].Message, hook.Entries[idx].Data}, expected)
+			}
+		})
 	}
 }
