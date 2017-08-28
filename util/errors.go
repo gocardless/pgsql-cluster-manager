@@ -1,6 +1,8 @@
 package util
 
-import "errors"
+import (
+	"errors"
+)
 
 // ErrorWithFields wraps an error message with arbitrary logrus.Fields that can later be
 // logged

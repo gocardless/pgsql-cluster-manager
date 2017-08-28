@@ -18,7 +18,7 @@ func Reload(b PGBouncer, timeout time.Duration) error {
 
 	if err != nil {
 		return util.NewErrorWithFields(
-			"failed to reload PGBouncer",
+			"Failed to reload PGBouncer",
 			map[string]interface{}{
 				"error": err.Error(),
 			},

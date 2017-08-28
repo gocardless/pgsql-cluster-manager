@@ -11,6 +11,8 @@ import (
 
 	"github.com/coreos/etcd/clientv3"
 	"github.com/gocardless/pgsql-novips/daemon"
+	"github.com/gocardless/pgsql-novips/handlers"
+	"github.com/gocardless/pgsql-novips/pgbouncer"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 )
@@ -20,7 +22,7 @@ func main() {
 }
 
 // App generates a command-line application that is the entrypoint for pgsql-novips
-func App(log *logrus.Logger) *cli.App {
+func App(logger *logrus.Logger) *cli.App {
 	app := cli.NewApp()
 
 	app.Name = "pgsql-novips"
@@ -91,25 +93,31 @@ func App(log *logrus.Logger) *cli.App {
 					Name:   "pgbouncer-config",
 					Usage:  "Path to place rendered PGBouncer config",
 					EnvVar: "PGBOUNCER_CONFIG",
-					Value:  "/etc/pgbouncer/config.ini",
+					Value:  "/etc/pgbouncer/pgbouncer.ini",
 				},
 				cli.StringFlag{
 					Name:   "pgbouncer-config-template",
 					Usage:  "Template file for PGBouncer config",
 					EnvVar: "PGBOUNCER_CONFIG_TEMPLATE",
-					Value:  "/etc/pgbouncer/config.ini.template",
+					Value:  "/etc/pgbouncer/pgbouncer.ini.template",
+				},
+				cli.IntFlag{
+					Name:   "pgbouncer-timeout",
+					Usage:  "Timeout in seconds to wait for PGBouncer to execute statement",
+					EnvVar: "PGBOUNCER_TIMEOUT",
+					Value:  1,
 				},
 				cli.StringFlag{
 					Name:   "etcd-heartbeat-path",
-					Usage:  "Path in which to store client heartbeat",
+					Usage:  "Path in which to store client heartbeat (within namespace)",
 					EnvVar: "PROXY_ETCD_HEARTBEAT_PATH",
-					Value:  "/postgres/proxy",
+					Value:  "/proxy",
 				},
 				cli.StringFlag{
-					Name:   "proxy-postgres-etcd-key",
-					EnvVar: "PROXY_POSTGRES_ETCD_KEY",
-					Usage:  "Proxy to host at the etcd key",
-					Value:  "/postgres/pgbouncer",
+					Name:   "pgbouncer-host-key",
+					EnvVar: "PGBOUNCER_HOST_KEY",
+					Usage:  "Proxy to host at the etcd key (within namespace)",
+					Value:  "/pgbouncer",
 				},
 			},
 			Action: func(c *cli.Context) error {
@@ -118,24 +126,27 @@ func App(log *logrus.Logger) *cli.App {
 				}
 
 				cfg := newEtcdConfig(c)
-				d, err := daemon.New(cfg)
+				d, err := daemon.New(cfg, c.GlobalString("etcd-namespace"), logger)
 
 				if err != nil {
-					cli.NewExitError("Failed to initialize daemon", 1)
+					return cli.NewExitError(err.Error(), 1)
 				}
 
-				log.Info("Starting daemon...")
-
-				go d.Start(context.Background(), c.GlobalString("etcd-namespace"),
-					daemon.HandlerMap{
-						"/master": func(value string) error {
-							log.WithField("value", value).Info("/master")
-							return nil
-						},
+				d.RegisterHandler(
+					c.String("pgbouncer-host-key"),
+					handlers.PGBouncerHostChange{
+						Timeout: time.Duration(c.Int("pgbouncer-timeout")) * time.Second,
+						PGBouncer: pgbouncer.NewPGBouncer(
+							c.String("pgbouncer-config"),
+							c.String("pgbouncer-config-template"),
+						),
 					},
 				)
 
-				waitForSignal(log, "Received %s, shutting down daemon...")
+				logger.Info("Starting daemon...")
+				go d.Start(context.Background())
+
+				waitForSignal(logger, "Received %s, shutting down daemon...")
 				return d.Shutdown()
 			},
 		},
@@ -176,13 +187,13 @@ func App(log *logrus.Logger) *cli.App {
 	return app
 }
 
-func waitForSignal(log *logrus.Logger, template string) os.Signal {
+func waitForSignal(logger *logrus.Logger, template string) os.Signal {
 	sigc := make(chan os.Signal, 1)
 	signal.Notify(sigc, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
 	recv := <-sigc
 
-	log.Info(fmt.Sprintf(template, recv))
+	logger.Info(fmt.Sprintf(template, recv))
 
 	return recv
 }

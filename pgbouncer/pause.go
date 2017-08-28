@@ -38,7 +38,7 @@ func Pause(b PGBouncer, timeout time.Duration) error {
 	}
 
 	return util.NewErrorWithFields(
-		"failed to pause PGBouncer",
+		"Failed to pause PGBouncer",
 		map[string]interface{}{
 			"error": err.Error(),
 		},

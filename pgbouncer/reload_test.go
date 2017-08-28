@@ -44,6 +44,6 @@ func TestReload_WhenFailsReturnsError(t *testing.T) {
 	ferr, _ := err.(util.ErrorWithFields)
 
 	assert.Error(t, ferr, "expected Reload to return error")
-	assert.Equal(t, "failed to reload PGBouncer", ferr.Error())
+	assert.Equal(t, "Failed to reload PGBouncer", ferr.Error())
 	assert.Equal(t, "timeout", ferr.Fields["error"])
 }

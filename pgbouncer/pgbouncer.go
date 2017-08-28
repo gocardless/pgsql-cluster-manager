@@ -36,8 +36,8 @@ type pgBouncer struct {
 	ConfigFileTemplate string // template that can be rendered with Host value
 }
 
-// New returns a PGBouncer configured around the given configFile and template
-func New(configFile, configFileTemplate string) PGBouncer {
+// NewPGBouncer returns a PGBouncer configured around the given configFile and template
+func NewPGBouncer(configFile, configFileTemplate string) PGBouncer {
 	return &pgBouncer{
 		ConfigFile:         configFile,
 		ConfigFileTemplate: configFileTemplate,
@@ -52,7 +52,7 @@ func (b pgBouncer) Config() (map[string]string, error) {
 
 	if err != nil {
 		return nil, util.NewErrorWithFields(
-			"failed to read PGBouncer config template file",
+			"Failed to read PGBouncer config template file",
 			map[string]interface{}{
 				"path":  b.ConfigFileTemplate,
 				"error": err,
@@ -122,7 +122,7 @@ func (b pgBouncer) psqlOptions() (*pg.Options, error) {
 
 	if socketDir == nullString || portStr == nullString {
 		return nil, util.NewErrorWithFields(
-			"failed to parse required config from PGBouncer config template",
+			"Failed to parse required config from PGBouncer config template",
 			map[string]interface{}{
 				"socketDir":          socketDir,
 				"portStr":            portStr,
@@ -146,7 +146,7 @@ func (b pgBouncer) createTemplate() (*template.Template, error) {
 
 	if err != nil {
 		return nil, util.NewErrorWithFields(
-			"failed to read PGBouncer config template file",
+			"Failed to read PGBouncer config template file",
 			map[string]interface{}{
 				"path":  b.ConfigFileTemplate,
 				"error": err,

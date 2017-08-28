@@ -44,7 +44,7 @@ func TestPause_WhenFailsReturnsError(t *testing.T) {
 	ferr, _ := err.(util.ErrorWithFields)
 
 	assert.Error(t, ferr, "expected Pause to return error")
-	assert.Equal(t, "failed to pause PGBouncer", ferr.Error())
+	assert.Equal(t, "Failed to pause PGBouncer", ferr.Error())
 	assert.Equal(t, "timeout", ferr.Fields["error"])
 }
 

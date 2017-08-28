@@ -4,9 +4,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Sirupsen/logrus/hooks/test"
 	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/mvcc/mvccpb"
-	"github.com/stretchr/testify/assert"
+	"github.com/gocardless/pgsql-novips/handlers"
 	"github.com/stretchr/testify/mock"
 	"golang.org/x/net/context"
 )
@@ -23,6 +24,17 @@ func (w FakeWatcher) Close() error {
 	return args.Error(0)
 }
 
+type FakeHandler struct {
+	mock.Mock
+	_Run func(string, string) error
+}
+
+func (h FakeHandler) Run(key, value string) error {
+	args := h.Called(key, value)
+	h._Run(key, value)
+	return args.Error(0)
+}
+
 func mockEvent(key, value string) *clientv3.Event {
 	return &clientv3.Event{
 		Type: clientv3.EventTypePut,
@@ -36,34 +48,45 @@ func mockEvent(key, value string) *clientv3.Event {
 func TestStart_CallsHandlersOnEvents(t *testing.T) {
 	watcher := FakeWatcher{}
 	ctx := context.Background()
+	logger, _ := test.NewNullLogger()
 
 	watchChan := make(chan clientv3.WatchResponse, 1)
 	watchChan <- clientv3.WatchResponse{
 		Events: []*clientv3.Event{mockEvent("/postgres/master", "pg01")},
 	}
 
-	values := make(chan string, 1)
+	done := make(chan interface{}, 1)
 
 	defer close(watchChan)
-	defer close(values)
+	defer close(done)
 
 	watcher.
 		On("Watch", ctx, "/postgres", mock.AnythingOfType("[]clientv3.OpOption")).
 		Return((clientv3.WatchChan)(watchChan))
 
-	go func() {
-		Daemon{watcher}.Start(ctx, "/postgres", HandlerMap{
-			"/master": func(value string) error {
-				values <- value
-				return nil
-			},
-		})
-	}()
+	handler := FakeHandler{
+		_Run: func(key, value string) error {
+			done <- struct{}{}
+			return nil
+		},
+	}
+
+	// Expect that we receive the key without the namespace prefix
+	handler.On("Run", "/master", "pg01").Return(nil)
+
+	go Daemon{
+		watcher:   watcher,
+		namespace: "/postgres",
+		logger:    logger,
+		handlers: map[string]handlers.Handler{
+			"/master": handler,
+		},
+	}.Start(ctx)
 
 	select {
-	case value := <-values:
+	case <-done:
 		watcher.AssertExpectations(t)
-		assert.Equal(t, value, "pg01", "expected to receive value in watched event")
+		handler.AssertExpectations(t)
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for handler to be executed")
 	}
