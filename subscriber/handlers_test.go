@@ -1,4 +1,4 @@
-package handlers
+package subscriber
 
 import (
 	"testing"
@@ -7,15 +7,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
-
-type FakeHandler struct{ mock.Mock }
-
-func (h FakeHandler) Run(key, value string) error {
-	args := h.Called(key, value)
-	return args.Error(0)
-}
 
 type logEntry struct {
 	Message string
@@ -93,7 +85,7 @@ func TestLoggingHandler(t *testing.T) {
 
 			handler.On("Run", "key", "value").Return(tc.handlerError).Once()
 
-			loggingHandler := NewLoggingHandler(logger, handler)
+			loggingHandler := newLoggingHandler(logger, handler)
 			loggingHandler.Run("key", "value")
 
 			handler.AssertExpectations(t)

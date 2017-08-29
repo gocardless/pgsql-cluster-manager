@@ -1,4 +1,4 @@
-package daemon
+package subscriber
 
 import (
 	"testing"
@@ -7,33 +7,9 @@ import (
 	"github.com/Sirupsen/logrus/hooks/test"
 	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/mvcc/mvccpb"
-	"github.com/gocardless/pgsql-novips/handlers"
 	"github.com/stretchr/testify/mock"
 	"golang.org/x/net/context"
 )
-
-type FakeWatcher struct{ mock.Mock }
-
-func (w FakeWatcher) Watch(ctx context.Context, key string, opts ...clientv3.OpOption) clientv3.WatchChan {
-	args := w.Called(ctx, key, opts)
-	return args.Get(0).(clientv3.WatchChan)
-}
-
-func (w FakeWatcher) Close() error {
-	args := w.Called()
-	return args.Error(0)
-}
-
-type FakeHandler struct {
-	mock.Mock
-	_Run func(string, string) error
-}
-
-func (h FakeHandler) Run(key, value string) error {
-	args := h.Called(key, value)
-	h._Run(key, value)
-	return args.Error(0)
-}
 
 func mockEvent(key, value string) *clientv3.Event {
 	return &clientv3.Event{
@@ -74,11 +50,11 @@ func TestStart_CallsHandlersOnEvents(t *testing.T) {
 	// Expect that we receive the key without the namespace prefix
 	handler.On("Run", "/master", "pg01").Return(nil)
 
-	go Daemon{
+	go etcd{
 		watcher:   watcher,
 		namespace: "/postgres",
 		logger:    logger,
-		handlers: map[string]handlers.Handler{
+		handlers: map[string]Handler{
 			"/master": handler,
 		},
 	}.Start(ctx)

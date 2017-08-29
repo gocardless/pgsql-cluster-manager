@@ -1,27 +1,24 @@
-package daemon
+package subscriber
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
 	"github.com/coreos/etcd/clientv3"
-	"github.com/gocardless/pgsql-novips/handlers"
 	"github.com/gocardless/pgsql-novips/util"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/net/context"
 )
 
-// Daemon provides the ability to watch for etcd event changes and dispatch events to
-// handlers
-type Daemon struct {
+type etcd struct {
 	watcher   clientv3.Watcher
-	handlers  map[string]handlers.Handler
+	handlers  map[string]Handler
 	namespace string
 	logger    *logrus.Logger
 }
 
 // New generates a Daemon with a watcher constructed using the given etcd config
-func New(cfg clientv3.Config, namespace string, logger *logrus.Logger) (*Daemon, error) {
+func NewEtcd(cfg clientv3.Config, namespace string, logger *logrus.Logger) (Subscriber, error) {
 	watcher, err := clientv3.New(cfg)
 
 	if err != nil {
@@ -34,33 +31,33 @@ func New(cfg clientv3.Config, namespace string, logger *logrus.Logger) (*Daemon,
 		)
 	}
 
-	return &Daemon{
+	return &etcd{
 		watcher:   watcher,
 		namespace: namespace,
-		handlers:  make(map[string]handlers.Handler),
+		handlers:  make(map[string]Handler),
 		logger:    logger,
 	}, nil
 }
 
 // RegisterHandler assigns a handler to an etcd key. When the daemon observes this key
 // change within the configured namespace,
-func (d Daemon) RegisterHandler(key string, handler handlers.Handler) {
-	d.handlers[key] = handlers.NewLoggingHandler(d.logger, handler)
+func (s etcd) RegisterHandler(key string, handler Handler) {
+	s.handlers[key] = newLoggingHandler(s.logger, handler)
 }
 
 // Start creates a new etcd watcher, subscribed to keys within namespace, and will trigger
 // handlers that match the given key when values change.
-func (d Daemon) Start(ctx context.Context) error {
-	watcher := d.watcher.Watch(ctx, d.namespace, clientv3.WithPrefix())
+func (s etcd) Start(ctx context.Context) error {
+	watcher := s.watcher.Watch(ctx, s.namespace, clientv3.WithPrefix())
 
 	for watcherResponse := range watcher {
 		for _, event := range watcherResponse.Events {
-			key := strings.TrimPrefix(string(event.Kv.Key), d.namespace)
+			key := strings.TrimPrefix(string(event.Kv.Key), s.namespace)
 			value := string(event.Kv.Value)
-			handler := d.handlers[key]
+			handler := s.handlers[key]
 
-			d.logger.
-				WithFields(logrus.Fields{"namespace": d.namespace, "key": key, "value": value}).
+			s.logger.
+				WithFields(logrus.Fields{"namespace": s.namespace, "key": key, "value": value}).
 				Info("Received etcd event")
 
 			if handler != nil {
@@ -73,6 +70,6 @@ func (d Daemon) Start(ctx context.Context) error {
 }
 
 // Shutdown closes the etcd watcher, ending the processing of all handlers
-func (d Daemon) Shutdown() error {
-	return d.watcher.Close()
+func (s etcd) Shutdown() error {
+	return s.watcher.Close()
 }

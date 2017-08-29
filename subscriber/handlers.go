@@ -1,4 +1,4 @@
-package handlers
+package subscriber
 
 import (
 	"reflect"
@@ -7,19 +7,9 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// Handler is the minimal interface for components that should respond to etcd key changes
+// Handler is the minimal interface that should respond to Subscriber events
 type Handler interface {
 	Run(string, string) error
-}
-
-func collectError(statements ...func() error) error {
-	for _, statement := range statements {
-		if err := statement(); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 type loggingHandler struct {
@@ -28,8 +18,7 @@ type loggingHandler struct {
 	Handler
 }
 
-// NewLoggingHandler decorates a Handler to enable logging of start/end of Run
-func NewLoggingHandler(logger *logrus.Logger, handler Handler) Handler {
+func newLoggingHandler(logger *logrus.Logger, handler Handler) Handler {
 	return &loggingHandler{logger, reflect.TypeOf(handler).Name(), handler}
 }
 

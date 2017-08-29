@@ -10,9 +10,8 @@ import (
 	"time"
 
 	"github.com/coreos/etcd/clientv3"
-	"github.com/gocardless/pgsql-novips/daemon"
-	"github.com/gocardless/pgsql-novips/handlers"
 	"github.com/gocardless/pgsql-novips/pgbouncer"
+	"github.com/gocardless/pgsql-novips/subscriber"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 )
@@ -126,15 +125,15 @@ func App(logger *logrus.Logger) *cli.App {
 				}
 
 				cfg := newEtcdConfig(c)
-				d, err := daemon.New(cfg, c.GlobalString("etcd-namespace"), logger)
+				s, err := subscriber.NewEtcd(cfg, c.GlobalString("etcd-namespace"), logger)
 
 				if err != nil {
 					return cli.NewExitError(err.Error(), 1)
 				}
 
-				d.RegisterHandler(
+				s.RegisterHandler(
 					c.String("pgbouncer-host-key"),
-					handlers.PGBouncerHostChange{
+					pgbouncer.HostChange{
 						PGBouncer: pgbouncer.NewPGBouncer(
 							c.String("pgbouncer-config"),
 							c.String("pgbouncer-config-template"),
@@ -144,10 +143,10 @@ func App(logger *logrus.Logger) *cli.App {
 				)
 
 				logger.Info("Starting daemon...")
-				go d.Start(context.Background())
+				go s.Start(context.Background())
 
 				waitForSignal(logger, "Received %s, shutting down daemon...")
-				return d.Shutdown()
+				return s.Shutdown()
 			},
 		},
 		{
