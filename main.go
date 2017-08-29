@@ -10,8 +10,9 @@ import (
 	"time"
 
 	"github.com/coreos/etcd/clientv3"
-	"github.com/gocardless/pgsql-novips/pgbouncer"
+	"github.com/gocardless/pgsql-novips/proxy"
 	"github.com/gocardless/pgsql-novips/subscriber"
+	"github.com/gocardless/pgsql-novips/util"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 )
@@ -124,29 +125,28 @@ func App(logger *logrus.Logger) *cli.App {
 					return cli.NewExitError(err, 1)
 				}
 
-				cfg := newEtcdConfig(c)
-				s, err := subscriber.NewEtcd(cfg, c.GlobalString("etcd-namespace"), logger)
+				etcd, err := createEtcdConnection(c)
 
 				if err != nil {
 					return cli.NewExitError(err.Error(), 1)
 				}
 
-				s.RegisterHandler(
-					c.String("pgbouncer-host-key"),
-					pgbouncer.HostChange{
-						PGBouncer: pgbouncer.NewPGBouncer(
-							c.String("pgbouncer-config"),
-							c.String("pgbouncer-config-template"),
-							time.Duration(c.Int("pgbouncer-timeout"))*time.Second,
-						),
+				sub := proxy.New(
+					subscriber.NewLoggingSubscriber(
+						logger, subscriber.NewEtcd(etcd, c.GlobalString("etcd-namespace")),
+					),
+					proxy.ProxyConfig{
+						PGBouncerHostKey:        c.String("pgbouncer-host-key"),
+						PGBouncerConfig:         c.String("pgbouncer-config"),
+						PGBouncerConfigTemplate: c.String("pgbouncer-config-template"),
+						PGBouncerTimeout:        time.Duration(c.Int("pgbouncer-timeout")) * time.Second,
 					},
 				)
 
-				logger.Info("Starting daemon...")
-				go s.Start(context.Background())
+				go sub.Start(context.Background())
 
 				waitForSignal(logger, "Received %s, shutting down daemon...")
-				return s.Shutdown()
+				return sub.Shutdown()
 			},
 		},
 		{
@@ -197,14 +197,28 @@ func waitForSignal(logger *logrus.Logger, template string) os.Signal {
 	return recv
 }
 
-func newEtcdConfig(c *cli.Context) clientv3.Config {
+func createEtcdConnection(c *cli.Context) (*clientv3.Client, error) {
 	hosts := c.GlobalString("etcd-hosts")
 	timeout := c.GlobalInt("etcd-timeout")
 
-	return clientv3.Config{
-		Endpoints:   strings.Split(hosts, ","),
-		DialTimeout: time.Duration(timeout) * time.Second,
+	client, err := clientv3.New(
+		clientv3.Config{
+			Endpoints:   strings.Split(hosts, ","),
+			DialTimeout: time.Duration(timeout) * time.Second,
+		},
+	)
+
+	if err == nil {
+		return client, err
 	}
+
+	return client, util.NewErrorWithFields(
+		"Failed to connect to etcd",
+		map[string]interface{}{
+			"error": err.Error(),
+			"hosts": fmt.Sprintf("%v", hosts),
+		},
+	)
 }
 
 func checkMissingFlags(c *cli.Context) error {

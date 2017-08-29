@@ -1,12 +1,9 @@
 package subscriber
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/coreos/etcd/clientv3"
-	"github.com/gocardless/pgsql-novips/util"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 )
 
@@ -17,27 +14,12 @@ type etcd struct {
 }
 
 // NewEtcd generates a Daemon with a watcher constructed using the given etcd config
-func NewEtcd(cfg clientv3.Config, namespace string, logger *logrus.Logger) (Subscriber, error) {
-	watcher, err := clientv3.New(cfg)
-
-	if err != nil {
-		return nil, util.NewErrorWithFields(
-			"Failed to connect to etcd",
-			map[string]interface{}{
-				"error":  err.Error(),
-				"config": fmt.Sprintf("%v", cfg),
-			},
-		)
+func NewEtcd(watcher clientv3.Watcher, namespace string) Subscriber {
+	return &etcd{
+		watcher:   watcher,
+		namespace: namespace,
+		handlers:  make(map[string]Handler),
 	}
-
-	return newLoggingSubscriber(
-		logger,
-		&etcd{
-			watcher:   watcher,
-			namespace: namespace,
-			handlers:  make(map[string]Handler),
-		},
-	), nil
 }
 
 // RegisterHandler assigns a handler to an etcd key. When the daemon observes this key

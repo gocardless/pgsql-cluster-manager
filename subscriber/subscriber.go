@@ -11,7 +11,7 @@ type Subscriber interface {
 	Shutdown() error
 }
 
-func newLoggingSubscriber(logger *logrus.Logger, subscriber Subscriber) Subscriber {
+func NewLoggingSubscriber(logger *logrus.Logger, subscriber Subscriber) Subscriber {
 	return &loggingSubscriber{logger, subscriber}
 }
 
@@ -22,4 +22,11 @@ type loggingSubscriber struct {
 
 func (s loggingSubscriber) RegisterHandler(key string, handler Handler) {
 	s.Subscriber.RegisterHandler(key, newLoggingHandler(s.logger, handler))
+}
+
+func (s loggingSubscriber) Start(ctx context.Context) error {
+	s.logger.Info("Starting subscriber")
+	defer s.logger.Info("Finished subscriber")
+
+	return s.Subscriber.Start(ctx)
 }
