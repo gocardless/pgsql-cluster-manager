@@ -3,7 +3,6 @@ package subscriber
 import (
 	"reflect"
 
-	"github.com/gocardless/pgsql-novips/util"
 	"github.com/sirupsen/logrus"
 )
 
@@ -35,8 +34,10 @@ func (h loggingHandler) Run(key, value string) error {
 	err := h.Handler.Run(key, value)
 
 	if err != nil {
-		if ferr, ok := err.(util.ErrorWithFields); ok {
-			logger = logger.WithFields(ferr.Fields)
+		if ferr, ok := err.(interface {
+			Fields() map[string]interface{}
+		}); ok {
+			logger = logger.WithFields(ferr.Fields())
 		}
 
 		logger.Error(err.Error())

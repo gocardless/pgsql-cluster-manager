@@ -1,9 +1,9 @@
 package subscriber
 
 import (
+	"errors"
 	"testing"
 
-	"github.com/gocardless/pgsql-novips/util"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
@@ -12,6 +12,15 @@ import (
 type logEntry struct {
 	Message string
 	Data    logrus.Fields
+}
+
+type errorWithFields struct {
+	error
+	fields map[string]interface{}
+}
+
+func (e errorWithFields) Fields() map[string]interface{} {
+	return e.fields
 }
 
 func TestLoggingHandler(t *testing.T) {
@@ -44,10 +53,10 @@ func TestLoggingHandler(t *testing.T) {
 		},
 		{
 			"log when fails",
-			util.NewErrorWithFields(
-				"uh oh",
+			errorWithFields{
+				errors.New("uh oh"),
 				map[string]interface{}{"error": "spaghettios"},
-			),
+			},
 			[]logEntry{
 				logEntry{
 					Message: "Running handler...",

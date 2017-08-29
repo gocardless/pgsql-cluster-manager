@@ -3,13 +3,12 @@ package pgbouncer
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"html/template"
 	"io/ioutil"
 	"os"
 	"regexp"
 	"time"
-
-	"github.com/gocardless/pgsql-novips/util"
 )
 
 // PGBouncer provides an interface to interact with a local PGBouncer service
@@ -26,6 +25,15 @@ type pgBouncer struct {
 	ConfigFile         string
 	ConfigFileTemplate string // template that can be rendered with Host value
 	PsqlExecutor
+}
+
+type errorWithFields struct {
+	error
+	fields map[string]interface{}
+}
+
+func (e errorWithFields) Fields() map[string]interface{} {
+	return e.fields
 }
 
 // NewPGBouncer returns a PGBouncer configured around the given configFile and template
@@ -47,13 +55,13 @@ func (b pgBouncer) Config() (map[string]string, error) {
 	configFile, err := os.Open(b.ConfigFileTemplate)
 
 	if err != nil {
-		return nil, util.NewErrorWithFields(
-			"Failed to read PGBouncer config template file",
+		return nil, errorWithFields{
+			errors.New("Failed to read PGBouncer config template file"),
 			map[string]interface{}{
 				"path":  b.ConfigFileTemplate,
 				"error": err,
 			},
-		)
+		}
 	}
 
 	defer configFile.Close()
@@ -93,13 +101,13 @@ func (b pgBouncer) createTemplate() (*template.Template, error) {
 	configTemplate, err := ioutil.ReadFile(b.ConfigFileTemplate)
 
 	if err != nil {
-		return nil, util.NewErrorWithFields(
-			"Failed to read PGBouncer config template file",
+		return nil, errorWithFields{
+			errors.New("Failed to read PGBouncer config template file"),
 			map[string]interface{}{
 				"path":  b.ConfigFileTemplate,
 				"error": err,
 			},
-		)
+		}
 	}
 
 	return template.Must(template.New("PGBouncerConfig").Parse(string(configTemplate))), err
@@ -125,12 +133,12 @@ func (b pgBouncer) Pause() error {
 			}
 		}
 
-		return util.NewErrorWithFields(
-			"Failed to pause PGBouncer",
+		return errorWithFields{
+			errors.New("Failed to pause PGBouncer"),
 			map[string]interface{}{
 				"error": err.Error(),
 			},
-		)
+		}
 	}
 
 	return nil
@@ -139,12 +147,12 @@ func (b pgBouncer) Pause() error {
 // Reload will cause PGBouncer to reload configuration and live apply setting changes
 func (b pgBouncer) Reload() error {
 	if _, err := b.PsqlExecutor.Exec(`RELOAD;`); err != nil {
-		return util.NewErrorWithFields(
-			"Failed to reload PGBouncer",
+		return errorWithFields{
+			errors.New("Failed to reload PGBouncer"),
 			map[string]interface{}{
 				"error": err.Error(),
 			},
-		)
+		}
 	}
 
 	return nil

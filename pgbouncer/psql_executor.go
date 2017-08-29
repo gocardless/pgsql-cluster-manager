@@ -1,6 +1,7 @@
 package pgbouncer
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -8,7 +9,6 @@ import (
 
 	"github.com/go-pg/pg"
 	"github.com/go-pg/pg/orm"
-	"github.com/gocardless/pgsql-novips/util"
 )
 
 // PsqlExecutor implements the execution of SQL queries against a Postgres connection
@@ -52,14 +52,14 @@ func (e pgbouncerExecutor) psqlOptions() (*pg.Options, error) {
 	port, _ := strconv.Atoi(strings.TrimSpace(portStr))
 
 	if socketDir == nullString || portStr == nullString {
-		return nil, util.NewErrorWithFields(
-			"Failed to parse required config from PGBouncer config template",
+		return nil, errorWithFields{
+			errors.New("Failed to parse required config from PGBouncer config template"),
 			map[string]interface{}{
 				"socketDir": socketDir,
 				"portStr":   portStr,
 				"port":      port,
 			},
-		)
+		}
 	}
 
 	return &pg.Options{

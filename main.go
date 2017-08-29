@@ -12,7 +12,6 @@ import (
 	"github.com/coreos/etcd/clientv3"
 	"github.com/gocardless/pgsql-novips/proxy"
 	"github.com/gocardless/pgsql-novips/subscriber"
-	"github.com/gocardless/pgsql-novips/util"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 )
@@ -212,13 +211,7 @@ func createEtcdConnection(c *cli.Context) (*clientv3.Client, error) {
 		return client, err
 	}
 
-	return client, util.NewErrorWithFields(
-		"Failed to connect to etcd",
-		map[string]interface{}{
-			"error": err.Error(),
-			"hosts": fmt.Sprintf("%v", hosts),
-		},
-	)
+	return client, fmt.Errorf("Failed to connect to etcd: %v", hosts)
 }
 
 func checkMissingFlags(c *cli.Context) error {

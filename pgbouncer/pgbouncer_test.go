@@ -6,7 +6,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/gocardless/pgsql-novips/util"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -18,13 +17,13 @@ func TestGenerateConfig(t *testing.T) {
 		}
 
 		err := bouncer.GenerateConfig("curly.db.ams.gc.cx")
-		assert.IsType(t, util.ErrorWithFields{}, err, "expected error to be ErrorWithFields")
+		assert.IsType(t, errorWithFields{}, err, "expected error to be errorWithFields")
 
-		ferr, _ := err.(util.ErrorWithFields)
+		ferr, _ := err.(errorWithFields)
 
 		assert.Error(t, err, "expected config generation to fail")
 		assert.Equal(t, "Failed to read PGBouncer config template file", err.Error())
-		assert.Equal(t, "/this/does/not/exist", ferr.Fields["path"])
+		assert.Equal(t, "/this/does/not/exist", ferr.Fields()["path"])
 	})
 
 	t.Run("writes config with host when successful", func(t *testing.T) {
@@ -69,11 +68,11 @@ func TestPause(t *testing.T) {
 			"when pause fails",
 			errors.New("timeout"),
 			func(t *testing.T, err error) {
-				assert.IsType(t, util.ErrorWithFields{}, err, "expected error to be ErrorWithFields")
-				ferr, _ := err.(util.ErrorWithFields)
+				assert.IsType(t, errorWithFields{}, err, "expected error to be errorWithFields")
+				ferr, _ := err.(errorWithFields)
 
 				assert.Equal(t, "Failed to pause PGBouncer", ferr.Error())
-				assert.Equal(t, "timeout", ferr.Fields["error"])
+				assert.Equal(t, "timeout", ferr.Fields()["error"])
 			},
 		},
 		// If PGBouncer is already paused then we'll receive a specific error code. Verify that
@@ -124,11 +123,11 @@ func TestReload(t *testing.T) {
 			"when reload is successful",
 			errors.New("timeout"),
 			func(t *testing.T, err error) {
-				assert.IsType(t, util.ErrorWithFields{}, err, "expected error to be ErrorWithFields")
-				ferr, _ := err.(util.ErrorWithFields)
+				assert.IsType(t, errorWithFields{}, err, "expected error to be errorWithFields")
+				ferr, _ := err.(errorWithFields)
 
 				assert.Equal(t, "Failed to reload PGBouncer", ferr.Error())
-				assert.Equal(t, "timeout", ferr.Fields["error"])
+				assert.Equal(t, "timeout", ferr.Fields()["error"])
 			},
 		},
 	}
