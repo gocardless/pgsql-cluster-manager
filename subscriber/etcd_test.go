@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Sirupsen/logrus/hooks/test"
 	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/mvcc/mvccpb"
 	"github.com/stretchr/testify/mock"
@@ -24,7 +23,6 @@ func mockEvent(key, value string) *clientv3.Event {
 func TestStart_CallsHandlersOnEvents(t *testing.T) {
 	watcher := FakeWatcher{}
 	ctx := context.Background()
-	logger, _ := test.NewNullLogger()
 
 	watchChan := make(chan clientv3.WatchResponse, 1)
 	watchChan <- clientv3.WatchResponse{
@@ -53,7 +51,6 @@ func TestStart_CallsHandlersOnEvents(t *testing.T) {
 	go etcd{
 		watcher:   watcher,
 		namespace: "/postgres",
-		logger:    logger,
 		handlers: map[string]Handler{
 			"/master": handler,
 		},

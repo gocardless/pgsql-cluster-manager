@@ -14,10 +14,9 @@ type etcd struct {
 	watcher   clientv3.Watcher
 	handlers  map[string]Handler
 	namespace string
-	logger    *logrus.Logger
 }
 
-// New generates a Daemon with a watcher constructed using the given etcd config
+// NewEtcd generates a Daemon with a watcher constructed using the given etcd config
 func NewEtcd(cfg clientv3.Config, namespace string, logger *logrus.Logger) (Subscriber, error) {
 	watcher, err := clientv3.New(cfg)
 
@@ -31,18 +30,20 @@ func NewEtcd(cfg clientv3.Config, namespace string, logger *logrus.Logger) (Subs
 		)
 	}
 
-	return &etcd{
-		watcher:   watcher,
-		namespace: namespace,
-		handlers:  make(map[string]Handler),
-		logger:    logger,
-	}, nil
+	return newLoggingSubscriber(
+		logger,
+		&etcd{
+			watcher:   watcher,
+			namespace: namespace,
+			handlers:  make(map[string]Handler),
+		},
+	), nil
 }
 
 // RegisterHandler assigns a handler to an etcd key. When the daemon observes this key
 // change within the configured namespace,
 func (s etcd) RegisterHandler(key string, handler Handler) {
-	s.handlers[key] = newLoggingHandler(s.logger, handler)
+	s.handlers[key] = handler
 }
 
 // Start creates a new etcd watcher, subscribed to keys within namespace, and will trigger
@@ -55,10 +56,6 @@ func (s etcd) Start(ctx context.Context) error {
 			key := strings.TrimPrefix(string(event.Kv.Key), s.namespace)
 			value := string(event.Kv.Value)
 			handler := s.handlers[key]
-
-			s.logger.
-				WithFields(logrus.Fields{"namespace": s.namespace, "key": key, "value": value}).
-				Info("Received etcd event")
 
 			if handler != nil {
 				handler.Run(key, value)
