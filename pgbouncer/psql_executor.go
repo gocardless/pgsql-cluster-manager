@@ -1,19 +1,18 @@
 package pgbouncer
 
 import (
+	"context"
+	"database/sql"
 	"errors"
 	"fmt"
-	"strconv"
-	"strings"
 	"time"
 
-	"github.com/go-pg/pg"
-	"github.com/go-pg/pg/orm"
+	_ "github.com/lib/pq"
 )
 
 // PsqlExecutor implements the execution of SQL queries against a Postgres connection
 type PsqlExecutor interface {
-	Exec(interface{}, ...interface{}) (orm.Result, error)
+	Query(string, ...interface{}) (*sql.Rows, error)
 }
 
 type pgbouncerExecutor struct {
@@ -25,48 +24,57 @@ func NewPGBouncerExecutor(bouncer PGBouncer, timeout time.Duration) PsqlExecutor
 	return &pgbouncerExecutor{bouncer, timeout}
 }
 
-// Exec generates a connection to PGBouncer's Postgres database and executes the given
+// Query generates a connection to PGBouncer's Postgres database and executes the given
 // command
-func (e pgbouncerExecutor) Exec(query interface{}, params ...interface{}) (orm.Result, error) {
-	psqlOptions, err := e.psqlOptions()
+func (e pgbouncerExecutor) Query(query string, params ...interface{}) (*sql.Rows, error) {
+	psql, err := e.psql()
 
 	if err != nil {
 		return nil, err
 	}
 
-	return pg.Connect(psqlOptions).WithTimeout(e.timeout).Exec(query, params)
+	ctx, cancel := context.WithTimeout(context.Background(), e.timeout)
+	defer cancel()
+
+	return psql.QueryContext(ctx, query, params...)
 }
 
-func (e pgbouncerExecutor) psqlOptions() (*pg.Options, error) {
+func (e pgbouncerExecutor) psql() (*sql.DB, error) {
+	connStr, err := e.connectionString()
+
+	if err != nil {
+		return nil, err
+	}
+
+	return sql.Open("postgres", connStr)
+}
+
+func (e pgbouncerExecutor) connectionString() (string, error) {
 	var nullString string
 	var config map[string]string
 
 	config, err := e.Config()
 
 	if err != nil {
-		return nil, err
+		return nullString, err
 	}
 
 	socketDir := config["unix_socket_dir"]
-	portStr := config["listen_port"]
-	port, _ := strconv.Atoi(strings.TrimSpace(portStr))
+	port := config["listen_port"]
 
-	if socketDir == nullString || portStr == nullString {
-		return nil, errorWithFields{
+	if socketDir == nullString || port == nullString {
+		return nullString, errorWithFields{
 			errors.New("Failed to parse required config from PGBouncer config template"),
 			map[string]interface{}{
 				"socketDir": socketDir,
-				"portStr":   portStr,
 				"port":      port,
 			},
 		}
 	}
 
-	return &pg.Options{
-		Network:     "unix",
-		User:        "pgbouncer",
-		Database:    "pgbouncer",
-		Addr:        fmt.Sprintf("%s/.s.PGSQL.%d", socketDir, port),
-		ReadTimeout: time.Second,
-	}, nil
+	return fmt.Sprintf(
+		"user=pgbouncer dbname=pgbouncer connect_timeout=1 host=%s port=%s",
+		socketDir,
+		port,
+	), err
 }

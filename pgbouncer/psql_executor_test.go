@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestPGBouncerExecutor_psqlOptions(t *testing.T) {
+func TestPGBouncerExecutor_connectionString(t *testing.T) {
 	executor := pgbouncerExecutor{
 		PGBouncer: pgBouncer{
 			ConfigFile:         "/etc/pgbouncer/pgbouncer.ini",
@@ -14,8 +14,12 @@ func TestPGBouncerExecutor_psqlOptions(t *testing.T) {
 		},
 	}
 
-	options, err := executor.psqlOptions()
+	connStr, err := executor.connectionString()
 
-	assert.Nil(t, err, "expected no error")
-	assert.Equal(t, options.Addr, "/var/run/postgresql/.s.PGSQL.6432")
+	if ok := assert.Nil(t, err, "expected no error"); !ok {
+		return
+	}
+
+	assert.Contains(t, connStr, "port=6432")
+	assert.Contains(t, connStr, "host=/var/run/postgresql")
 }

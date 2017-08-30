@@ -1,6 +1,7 @@
 package pgbouncer
 
 import (
+	"database/sql"
 	"errors"
 	"io/ioutil"
 	"os"
@@ -54,7 +55,7 @@ func makeTempFile(t *testing.T, prefix string) *os.File {
 func TestPause(t *testing.T) {
 	testCases := []struct {
 		name        string
-		psqlError   error                   // error returned from PsqlExecutor when Exec'ing PAUSE
+		psqlError   error                   // error returned from PsqlExecutor when Query'ing PAUSE
 		assertError func(*testing.T, error) // assertions on the Pause() error
 	}{
 		{
@@ -97,7 +98,7 @@ func TestPause(t *testing.T) {
 			psql := new(FakePsqlExecutor)
 			bouncer := pgBouncer{PsqlExecutor: psql}
 
-			psql.On("Exec", "PAUSE;", noParams).Return(FakeORMResult{}, tc.psqlError)
+			psql.On("Query", "PAUSE;", noParams).Return(&sql.Rows{}, tc.psqlError)
 			err := bouncer.Pause()
 
 			psql.AssertExpectations(t)
@@ -109,7 +110,7 @@ func TestPause(t *testing.T) {
 func TestReload(t *testing.T) {
 	testCases := []struct {
 		name        string
-		psqlError   error                   // error returned from PsqlExecutor when Exec'ing RELOAD
+		psqlError   error                   // error returned from PsqlExecutor when Query'ing RELOAD
 		assertError func(*testing.T, error) // assertions on the Reload() error
 	}{
 		{
@@ -138,7 +139,7 @@ func TestReload(t *testing.T) {
 			psql := new(FakePsqlExecutor)
 			bouncer := pgBouncer{PsqlExecutor: psql}
 
-			psql.On("Exec", "RELOAD;", noParams).Return(FakeORMResult{}, tc.psqlError)
+			psql.On("Query", "RELOAD;", noParams).Return(&sql.Rows{}, tc.psqlError)
 			err := bouncer.Reload()
 
 			psql.AssertExpectations(t)

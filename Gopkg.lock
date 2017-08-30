@@ -14,12 +14,6 @@
   version = "v1.1.0"
 
 [[projects]]
-  name = "github.com/go-pg/pg"
-  packages = [".","internal","internal/parser","internal/pool","orm","types"]
-  revision = "3b0eccfa10f93b9e49edb9d44c363fa6b05527f4"
-  version = "v6.4.21"
-
-[[projects]]
   branch = "master"
   name = "github.com/golang/protobuf"
   packages = ["proto","ptypes/any"]
@@ -27,9 +21,9 @@
 
 [[projects]]
   branch = "master"
-  name = "github.com/jinzhu/inflection"
-  packages = ["."]
-  revision = "1c35d901db3da928c72a72d8458480cc9ade058f"
+  name = "github.com/lib/pq"
+  packages = [".","oid"]
+  revision = "e42267488fe361b9dc034be7a6bffef5b195bceb"
 
 [[projects]]
   name = "github.com/pmezard/go-difflib"
@@ -39,7 +33,7 @@
 
 [[projects]]
   name = "github.com/sirupsen/logrus"
-  packages = ["."]
+  packages = [".","hooks/test"]
   revision = "f006c2ac4710855cf0f916dd6b77acf6b048dc6e"
   version = "v1.0.3"
 
@@ -100,6 +94,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "74ccb88465c455b20df090bf95fe47b9706659d0716792c27a25591dd5158e2d"
+  inputs-digest = "a9e522dcf08a456a7354daa0b1e66d5b0febe449ae179b4a8ac6c8874f36e4cc"
   solver-name = "gps-cdcl"
   solver-version = 1

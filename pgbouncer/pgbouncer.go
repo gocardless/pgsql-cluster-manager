@@ -110,6 +110,16 @@ func (b pgBouncer) createTemplate() (*template.Template, error) {
 		}
 	}
 
+	if matched, _ := regexp.Match("ignore_startup_parameters\\s*\\=.+extra_float_digits", configTemplate); !matched {
+		return nil, errorWithFields{
+			errors.New("PGBouncer is misconfigured"),
+			map[string]interface{}{
+				"path":     b.ConfigFileTemplate,
+				"expected": "'ignore_startup_paramets' to include 'extra_float_digits'",
+			},
+		}
+	}
+
 	return template.Must(template.New("PGBouncerConfig").Parse(string(configTemplate))), err
 }
 
@@ -125,7 +135,7 @@ const AlreadyPausedError string = "08P01"
 // processing to finish executing. The supplied timeout is applied to the Postgres
 // connection.
 func (b pgBouncer) Pause() error {
-	if _, err := b.PsqlExecutor.Exec(`PAUSE;`); err != nil {
+	if _, err := b.PsqlExecutor.Query(`PAUSE;`); err != nil {
 		if ferr, ok := err.(fieldError); ok {
 			// We get this when PGBouncer tells us we're already paused
 			if ferr.Field('C') == AlreadyPausedError {
@@ -146,7 +156,7 @@ func (b pgBouncer) Pause() error {
 
 // Reload will cause PGBouncer to reload configuration and live apply setting changes
 func (b pgBouncer) Reload() error {
-	if _, err := b.PsqlExecutor.Exec(`RELOAD;`); err != nil {
+	if _, err := b.PsqlExecutor.Query(`RELOAD;`); err != nil {
 		return errorWithFields{
 			errors.New("Failed to reload PGBouncer"),
 			map[string]interface{}{

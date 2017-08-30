@@ -1,9 +1,9 @@
 package pgbouncer
 
 import (
+	"database/sql"
 	"time"
 
-	"github.com/go-pg/pg/orm"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -26,26 +26,9 @@ func (b FakePGBouncer) Psql(timeout time.Duration) (PsqlExecutor, error) {
 
 type FakePsqlExecutor struct{ mock.Mock }
 
-func (e FakePsqlExecutor) Exec(query interface{}, params ...interface{}) (orm.Result, error) {
+func (e FakePsqlExecutor) Query(query string, params ...interface{}) (*sql.Rows, error) {
 	args := e.Called(query, params)
-	return args.Get(0).(orm.Result), args.Error(1)
-}
-
-type FakeORMResult struct{ mock.Mock }
-
-func (r FakeORMResult) Model() orm.Model {
-	args := r.Called()
-	return args.Get(0).(orm.Model)
-}
-
-func (r FakeORMResult) RowsAffected() int {
-	args := r.Called()
-	return args.Int(0)
-}
-
-func (r FakeORMResult) RowsReturned() int {
-	args := r.Called()
-	return args.Int(0)
+	return args.Get(0).(*sql.Rows), args.Error(1)
 }
 
 type FakeFieldError struct{ mock.Mock }
