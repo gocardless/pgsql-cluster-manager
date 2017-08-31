@@ -12,8 +12,9 @@ RUN sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release
   sudo apt-get update && sudo apt-get install -y pgbouncer=1.7.2-3.pgdg80+1
 
 # Install etcd from Google's repositories
+ENV ETCD_VERSION=v3.2.6
 RUN curl \
-      -L https://storage.googleapis.com/etcd/v3.2.6/etcd-v3.2.6-linux-amd64.tar.gz \
+      -L https://storage.googleapis.com/etcd/${ETCD_VERSION}/etcd-${ETCD_VERSION}-linux-amd64.tar.gz \
       -o /tmp/etcd-linux-amd64.tar.gz && \
   mkdir /tmp/etcd && \
   tar xzvf /tmp/etcd-linux-amd64.tar.gz -C /tmp/etcd --strip-components=1 && \
