@@ -16,8 +16,8 @@ func TestProxy(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	etcd := testHelpers.ExecEtcd(t, ctx)
-	bouncer := testHelpers.ExecPGBouncer(t, ctx)
+	etcd := testHelpers.StartEtcd(t, ctx)
+	bouncer := testHelpers.StartPGBouncer(t, ctx)
 
 	showDatabase := func(name string) *pgbouncer.Database {
 		databases, err := bouncer.ShowDatabases()

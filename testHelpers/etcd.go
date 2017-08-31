@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func ExecEtcd(t *testing.T, ctx context.Context) *clientv3.Client {
+func StartEtcd(t *testing.T, ctx context.Context) *clientv3.Client {
 	workspace, err := ioutil.TempDir("", "etcd")
 	if err != nil {
 		require.Fail(t, "failed to create etcd workspace: %s", err.Error())

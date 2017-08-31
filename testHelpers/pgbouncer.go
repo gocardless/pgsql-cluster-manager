@@ -19,7 +19,7 @@ type PGBouncerProcess struct {
 	ConfigFile, ConfigFileTemplate string
 }
 
-func ExecPGBouncer(t *testing.T, ctx context.Context) *PGBouncerProcess {
+func StartPGBouncer(t *testing.T, ctx context.Context) *PGBouncerProcess {
 	workspace, err := ioutil.TempDir("", "pgbouncer")
 	if err != nil {
 		require.Fail(t, "failed to create pgbouncer workspace: %s", err.Error())
