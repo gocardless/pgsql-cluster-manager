@@ -85,15 +85,20 @@ ignore_startup_parameters = extra_float_digits`, workspace)),
 }
 
 // pollPGBouncer attempts to execute a Reload against PGBouncer until the reload is
-// successful, timing out after 2s. This allows us to wait for PGBouncer to become ready
+// successful, eventually timing out. This allows us to wait for PGBouncer to become ready
 // before proceeding.
 func pollPGBouncer(bouncer pgbouncer.PGBouncer) error {
-	for i := 0; i < 20; i++ {
-		if err := bouncer.Reload(); err == nil {
-			return nil
-		}
-		<-time.After(100 * time.Millisecond)
-	}
+	timeout := time.After(5 * time.Second)
+	retry := time.Tick(100 * time.Millisecond)
 
-	return errors.New("timed out waiting for PGBouncer to start")
+	for {
+		select {
+		case <-retry:
+			if err := bouncer.Reload(); err == nil {
+				return nil
+			}
+		case <-timeout:
+			return errors.New("timed out waiting for PGBouncer to start")
+		}
+	}
 }
