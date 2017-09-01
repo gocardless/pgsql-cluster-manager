@@ -3,6 +3,7 @@ package pgbouncer
 import (
 	"bufio"
 	"bytes"
+	"database/sql"
 	"errors"
 	"html/template"
 	"io/ioutil"
@@ -17,6 +18,64 @@ type PGBouncer interface {
 	GenerateConfig(string) error
 	Pause() error
 	Reload() error
+	ShowDatabases() ([]Database, error)
+	PsqlExecutor
+}
+
+type Database struct {
+	Name, Host, Port string
+}
+
+// ShowDatabase extracts information from the SHOW DATABASE PGBouncer command, selecting
+// columns about database host details. This is quite cumbersome to write, due to the
+// inability to query select fields for database information, and the lack of guarantees
+// about the ordering of the columns returned from the command.
+func (b pgBouncer) ShowDatabases() ([]Database, error) {
+	databases := make([]Database, 0)
+	rows, err := b.PsqlExecutor.Query(`SHOW DATABASES;`)
+
+	if err != nil {
+		return databases, err
+	}
+
+	defer rows.Close()
+
+	cols, _ := rows.Columns()
+	columnPointers := make([]interface{}, len(cols))
+
+	indexOfColumn := func(c string) int {
+		for idx, column := range cols {
+			if column == c {
+				return idx
+			}
+		}
+
+		return -1
+	}
+
+	var name, host, port, null sql.NullString
+
+	for idx := range columnPointers {
+		columnPointers[idx] = &null
+	}
+
+	columnPointers[indexOfColumn("name")] = &name
+	columnPointers[indexOfColumn("host")] = &host
+	columnPointers[indexOfColumn("port")] = &port
+
+	for rows.Next() {
+		err := rows.Scan(columnPointers...)
+
+		if err != nil {
+			return databases, err
+		}
+
+		databases = append(databases, Database{
+			name.String, host.String, port.String,
+		})
+	}
+
+	return databases, rows.Err()
 }
 
 // PGBouncer represents a set of configuration required to manage a PGBouncer

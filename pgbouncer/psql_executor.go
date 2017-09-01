@@ -1,7 +1,6 @@
 package pgbouncer
 
 import (
-	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -33,10 +32,7 @@ func (e pgbouncerExecutor) Query(query string, params ...interface{}) (*sql.Rows
 		return nil, err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), e.timeout)
-	defer cancel()
-
-	return psql.QueryContext(ctx, query, params...)
+	return psql.Query(query, params...)
 }
 
 func (e pgbouncerExecutor) psql() (*sql.DB, error) {
