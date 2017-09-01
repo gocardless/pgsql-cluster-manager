@@ -16,6 +16,8 @@ import (
 	"github.com/urfave/cli"
 )
 
+var version string
+
 func main() {
 	App(logrus.StandardLogger()).Run(os.Args)
 }
@@ -26,6 +28,7 @@ func App(logger *logrus.Logger) *cli.App {
 
 	app.Name = "pgsql-novips"
 	app.Usage = "Control Postgres clusters through etcd configuration"
+	app.Version = version
 
 	app.Flags = []cli.Flag{
 		cli.StringFlag{
