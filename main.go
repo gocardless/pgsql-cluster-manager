@@ -14,12 +14,29 @@ import (
 	"github.com/gocardless/pgsql-novips/subscriber"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 var version string
+var iso3339Timestamp = "2006-01-02T15:04:05-0700"
 
 func main() {
-	App(logrus.StandardLogger()).Run(os.Args)
+	logger := logrus.StandardLogger()
+
+	// We should default to JSON logging if we think we're probably capturing logs, like
+	// when we can't detect a terminal.
+	if !terminal.IsTerminal(int(os.Stderr.Fd())) {
+		logger.Formatter = &logrus.JSONFormatter{
+			TimestampFormat: iso3339Timestamp,
+			FieldMap: logrus.FieldMap{
+				logrus.FieldKeyMsg:   "message",
+				logrus.FieldKeyLevel: "level",
+				logrus.FieldKeyTime:  "timestamp",
+			},
+		}
+	}
+
+	App(logger).Run(os.Args)
 }
 
 // App generates a command-line application that is the entrypoint for pgsql-novips
