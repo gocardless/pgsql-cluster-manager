@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/coreos/etcd/clientv3"
-	"github.com/gocardless/pgsql-novips/proxy"
+	"github.com/gocardless/pgsql-novips/pgbouncer"
 	"github.com/gocardless/pgsql-novips/subscriber"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
@@ -49,11 +49,6 @@ func App(logger *logrus.Logger) *cli.App {
 
 	app.Flags = []cli.Flag{
 		cli.StringFlag{
-			Name:   "client-id",
-			Usage:  "Unique identifier for heartbeats (typically hostname)",
-			EnvVar: "CLIENT_ID",
-		},
-		cli.StringFlag{
 			Name:   "etcd-namespace",
 			Usage:  "Prefix to all etcd accesses",
 			EnvVar: "ETCD_NAMESPACE",
@@ -65,28 +60,31 @@ func App(logger *logrus.Logger) *cli.App {
 			EnvVar: "ETCD_HOSTS",
 		},
 		cli.IntFlag{
-			Name:   "etcd-keepalive",
-			Usage:  "Keepalive in seconds when talking to etcd",
-			EnvVar: "ETCD_KEEPALIVE",
-			Value:  2,
-		},
-		cli.IntFlag{
 			Name:   "etcd-timeout",
 			Usage:  "Timeout in seconds when talking to etcd",
 			EnvVar: "ETCD_TIMEOUT",
 			Value:  5,
 		},
-		cli.IntFlag{
-			Name:   "etcd-heartbeat-keepalive",
-			Usage:  "Interval between renewing client heartbeat in etcd",
-			EnvVar: "ETCD_HEARTBEAT_KEEPALIVE",
-			Value:  3,
+	}
+
+	pgbouncerFlags := []cli.Flag{
+		cli.StringFlag{
+			Name:   "pgbouncer-config",
+			Usage:  "Path to place rendered PGBouncer config",
+			EnvVar: "PGBOUNCER_CONFIG",
+			Value:  "/etc/pgbouncer/pgbouncer.ini",
+		},
+		cli.StringFlag{
+			Name:   "pgbouncer-config-template",
+			Usage:  "Template file for PGBouncer config",
+			EnvVar: "PGBOUNCER_CONFIG_TEMPLATE",
+			Value:  "/etc/pgbouncer/pgbouncer.ini.template",
 		},
 		cli.IntFlag{
-			Name:   "etcd-heartbeat-timeout",
-			Usage:  "Period to persist client heartbeat in etcd",
-			EnvVar: "ETCD_HEARTBEAT_TIMEOUT",
-			Value:  10,
+			Name:   "pgbouncer-timeout",
+			Usage:  "Timeout in seconds to wait for PGBouncer to execute statement",
+			EnvVar: "PGBOUNCER_TIMEOUT",
+			Value:  1,
 		},
 	}
 
@@ -107,38 +105,17 @@ func App(logger *logrus.Logger) *cli.App {
 			Name:    "proxy",
 			Aliases: []string{},
 			Usage:   "Manage PGBouncer to proxy connections to host in etcd",
-			Flags: []cli.Flag{
-				cli.StringFlag{
-					Name:   "pgbouncer-config",
-					Usage:  "Path to place rendered PGBouncer config",
-					EnvVar: "PGBOUNCER_CONFIG",
-					Value:  "/etc/pgbouncer/pgbouncer.ini",
-				},
-				cli.StringFlag{
-					Name:   "pgbouncer-config-template",
-					Usage:  "Template file for PGBouncer config",
-					EnvVar: "PGBOUNCER_CONFIG_TEMPLATE",
-					Value:  "/etc/pgbouncer/pgbouncer.ini.template",
-				},
-				cli.IntFlag{
-					Name:   "pgbouncer-timeout",
-					Usage:  "Timeout in seconds to wait for PGBouncer to execute statement",
-					EnvVar: "PGBOUNCER_TIMEOUT",
-					Value:  1,
-				},
-				cli.StringFlag{
-					Name:   "etcd-heartbeat-path",
-					Usage:  "Path in which to store client heartbeat (within namespace)",
-					EnvVar: "PROXY_ETCD_HEARTBEAT_PATH",
-					Value:  "/proxy",
-				},
-				cli.StringFlag{
-					Name:   "pgbouncer-host-key",
-					EnvVar: "PGBOUNCER_HOST_KEY",
-					Usage:  "Proxy to host at the etcd key (within namespace)",
-					Value:  "/pgbouncer",
-				},
-			},
+			Flags: append(
+				pgbouncerFlags,
+				[]cli.Flag{
+					cli.StringFlag{
+						Name:   "pgbouncer-host-key",
+						EnvVar: "PGBOUNCER_HOST_KEY",
+						Usage:  "Proxy to host at the etcd key (within namespace)",
+						Value:  "/pgbouncer",
+					},
+				}...,
+			),
 			Action: func(c *cli.Context) error {
 				if err := checkMissingFlags(c); err != nil {
 					return cli.NewExitError(err, 1)
@@ -150,48 +127,39 @@ func App(logger *logrus.Logger) *cli.App {
 					return cli.NewExitError(err.Error(), 1)
 				}
 
-				sub := proxy.New(
-					subscriber.NewLoggingSubscriber(
-						logger, subscriber.NewEtcd(etcd, c.GlobalString("etcd-namespace")),
-					),
-					proxy.ProxyConfig{
-						PGBouncerHostKey:        c.String("pgbouncer-host-key"),
-						PGBouncerConfig:         c.String("pgbouncer-config"),
-						PGBouncerConfigTemplate: c.String("pgbouncer-config-template"),
-						PGBouncerTimeout:        time.Duration(c.Int("pgbouncer-timeout")) * time.Second,
-					},
+				sub := subscriber.NewLoggingSubscriber(logger, subscriber.NewEtcd(etcd, c.GlobalString("etcd-namespace")))
+				sub.RegisterHandler(
+					c.String("pgbouncer-host-key"),
+					&pgbouncer.HostChanger{createPGBouncer(c)},
 				)
 
-				go sub.Start(context.Background())
+				ctx, cancel := context.WithCancel(context.Background())
+				go sub.Start(ctx)
 
-				waitForSignal(logger, "Received %s, shutting down daemon...")
-				return sub.Shutdown()
+				return cancelOnSignal(cancel, logger, "Received %s, shutting down proxy daemon...")
 			},
 		},
 		{
 			Name:    "cluster",
 			Aliases: []string{},
 			Usage:   "Manage host as part of a Postgres cluster",
-			Flags: []cli.Flag{
-				cli.StringFlag{
-					Name:   "etcd-heartbeat-path",
-					Usage:  "Path in which to store client heartbeat",
-					EnvVar: "CLUSTER_ETCD_HEARTBEAT_PATH",
-					Value:  "/postgres/cluster",
-				},
-				cli.StringFlag{
-					Name:   "cluster-postgres-master-etcd-key",
-					EnvVar: "CLUSTER_POSTGRES_MASTER_ETCD_KEY",
-					Usage:  "Proxy to host at the etcd key",
-					Value:  "/postgres/master",
-				},
-				cli.IntFlag{
-					Name:   "cluster-pgbouncer-pause-timeout",
-					EnvVar: "CLUSTER_PGBOUNCER_PAUSE_TIMEOUT",
-					Value:  3,
-					Usage:  "Wait `TIMEOUT` seconds for PGBouncer to pause before giving up",
-				},
-			},
+			Flags: append(
+				pgbouncerFlags,
+				[]cli.Flag{
+					cli.StringFlag{
+						Name:   "postgres-master-etcd-key",
+						EnvVar: "POSTGRES_MASTER_ETCD_KEY",
+						Usage:  "(namespaced) etcd key that specifies the Postgres primary",
+						Value:  "/master",
+					},
+					cli.StringFlag{
+						Name:   "pgbouncer-master-etcd-key",
+						EnvVar: "PGBOUNCER_MASTER_ETCD_KEY",
+						Usage:  "(namespaces) etcd key that specifies the PGBouncer primary",
+						Value:  "/pgbouncer",
+					},
+				}...,
+			),
 			Action: func(c *cli.Context) error {
 				if err := checkMissingFlags(c); err != nil {
 					return cli.NewExitError(err, 1)
@@ -205,15 +173,24 @@ func App(logger *logrus.Logger) *cli.App {
 	return app
 }
 
-func waitForSignal(logger *logrus.Logger, template string) os.Signal {
+func cancelOnSignal(cancel func(), logger *logrus.Logger, template string) error {
 	sigc := make(chan os.Signal, 1)
 	signal.Notify(sigc, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
 	recv := <-sigc
 
 	logger.Info(fmt.Sprintf(template, recv))
+	cancel()
 
-	return recv
+	return nil
+}
+
+func createPGBouncer(c *cli.Context) pgbouncer.PGBouncer {
+	return pgbouncer.NewPGBouncer(
+		c.String("pgbouncer-config"),
+		c.String("pgbouncer-config-template"),
+		time.Duration(c.Int("pgbouncer-timeout"))*time.Second,
+	)
 }
 
 func createEtcdConnection(c *cli.Context) (*clientv3.Client, error) {

@@ -1,4 +1,4 @@
-package proxy
+package pgbouncer_test
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestProxy(t *testing.T) {
+func TestHostChanger(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -51,15 +51,8 @@ func TestProxy(t *testing.T) {
 	}
 
 	t.Run("changes PGBouncer database host in response to etcd key changes", func(t *testing.T) {
-		sub := New(
-			subscriber.NewEtcd(etcd, "/postgres"),
-			ProxyConfig{
-				PGBouncerHostKey:        "/master",
-				PGBouncerConfig:         bouncer.ConfigFile,
-				PGBouncerConfigTemplate: bouncer.ConfigFileTemplate,
-				PGBouncerTimeout:        time.Second,
-			},
-		)
+		sub := subscriber.NewEtcd(etcd, "/postgres")
+		sub.RegisterHandler("/master", pgbouncer.HostChanger{bouncer})
 
 		go sub.Start(ctx)
 
