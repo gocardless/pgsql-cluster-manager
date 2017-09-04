@@ -2,6 +2,12 @@
 
 
 [[projects]]
+  name = "github.com/beevik/etree"
+  packages = ["."]
+  revision = "abae5fc32af8862e420d52e686a7e6ec14111685"
+  version = "v0"
+
+[[projects]]
   name = "github.com/coreos/etcd"
   packages = ["auth/authpb","clientv3","etcdserver/api/v3rpc/rpctypes","etcdserver/etcdserverpb","mvcc/mvccpb"]
   revision = "9d43462d174c664f5edf313dec0de31e1ef4ed47"
@@ -94,6 +100,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "970fdad77fdfc8cce023d828d2f83515fb4b2964624348fd498468c8c4a68f0e"
+  inputs-digest = "984cf602cd34cf38b3c9139c7a00495c7a0b528c891381aef48b352915ba13f7"
   solver-name = "gps-cdcl"
   solver-version = 1
