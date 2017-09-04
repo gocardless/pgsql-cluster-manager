@@ -22,25 +22,19 @@ func NewEtcd(watcher clientv3.Watcher, namespace string) Subscriber {
 	}
 }
 
-// RegisterHandler assigns a handler to an etcd key. When the daemon observes this key
-// change within the configured namespace,
-func (s etcd) RegisterHandler(key string, handler Handler) {
-	s.handlers[key] = handler
-}
-
 // Start creates a new etcd watcher, subscribed to keys within namespace, and will trigger
 // handlers that match the given key when values change.
-func (s etcd) Start(ctx context.Context) error {
+func (s etcd) Start(ctx context.Context, handlers map[string]Handler) error {
 	watcher := s.watcher.Watch(ctx, s.namespace, clientv3.WithPrefix())
 
 	for watcherResponse := range watcher {
 		for _, event := range watcherResponse.Events {
 			key := strings.TrimPrefix(string(event.Kv.Key), s.namespace)
 			value := string(event.Kv.Value)
-			handler := s.handlers[key]
+			handler := handlers[key]
 
 			if handler != nil {
-				handler.Run(key, value)
+				s.work(handler, key, value)
 			}
 		}
 	}
@@ -48,7 +42,6 @@ func (s etcd) Start(ctx context.Context) error {
 	return nil
 }
 
-// Shutdown closes the etcd watcher, ending the processing of all handlers
-func (s etcd) Shutdown() error {
-	return s.watcher.Close()
+func (s etcd) work(handler Handler, key, value string) error {
+	return handler.Run(key, value)
 }

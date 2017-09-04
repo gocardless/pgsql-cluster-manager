@@ -23,7 +23,7 @@ func (e errorWithFields) Fields() map[string]interface{} {
 	return e.fields
 }
 
-func TestLoggingHandler(t *testing.T) {
+func TestLog(t *testing.T) {
 	testCases := []struct {
 		name         string
 		handlerError error
@@ -34,7 +34,7 @@ func TestLoggingHandler(t *testing.T) {
 			nil,
 			[]logEntry{
 				logEntry{
-					Message: "Running handler...",
+					Message: "Running...",
 					Data: logrus.Fields{
 						"handler": "FakeHandler",
 						"key":     "key",
@@ -42,7 +42,7 @@ func TestLoggingHandler(t *testing.T) {
 					},
 				},
 				logEntry{
-					Message: "Finished running handler",
+					Message: "Finished!",
 					Data: logrus.Fields{
 						"handler": "FakeHandler",
 						"key":     "key",
@@ -59,7 +59,7 @@ func TestLoggingHandler(t *testing.T) {
 			},
 			[]logEntry{
 				logEntry{
-					Message: "Running handler...",
+					Message: "Running...",
 					Data: logrus.Fields{
 						"handler": "FakeHandler",
 						"key":     "key",
@@ -76,7 +76,7 @@ func TestLoggingHandler(t *testing.T) {
 					},
 				},
 				logEntry{
-					Message: "Finished running handler",
+					Message: "Finished!",
 					Data: logrus.Fields{
 						"handler": "FakeHandler",
 						"key":     "key",
@@ -90,14 +90,12 @@ func TestLoggingHandler(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			logger, hook := test.NewNullLogger()
+			sub := new(FakeSubscriber)
 			handler := FakeHandler{}
 
-			handler.On("Run", "key", "value").Return(tc.handlerError).Once()
-
-			loggingHandler := newLoggingHandler(logger, handler)
-			loggingHandler.Run("key", "value")
-
-			handler.AssertExpectations(t)
+			sub.On("work", handler, "key", "value").Return(tc.handlerError).Once()
+			Log(logger, sub).work(handler, "key", "value")
+			sub.AssertExpectations(t)
 
 			for idx, expected := range tc.logEntries {
 				assert.Equal(t, logEntry{hook.Entries[idx].Message, hook.Entries[idx].Data}, expected)

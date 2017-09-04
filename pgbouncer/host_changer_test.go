@@ -51,10 +51,11 @@ func TestHostChanger(t *testing.T) {
 	}
 
 	t.Run("changes PGBouncer database host in response to etcd key changes", func(t *testing.T) {
-		sub := subscriber.NewEtcd(etcd, "/postgres")
-		sub.RegisterHandler("/master", pgbouncer.HostChanger{bouncer})
-
-		go sub.Start(ctx)
+		go subscriber.NewEtcd(etcd, "/postgres").Start(
+			ctx, map[string]subscriber.Handler{
+				"/master": pgbouncer.HostChanger{bouncer},
+			},
+		)
 
 		database := showDatabase("postgres")
 		require.Equal(t, database.Host, "{{.Host}}", "expected initial host to be from template")

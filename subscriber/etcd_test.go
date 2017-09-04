@@ -48,13 +48,9 @@ func TestStart_CallsHandlersOnEvents(t *testing.T) {
 	// Expect that we receive the key without the namespace prefix
 	handler.On("Run", "/master", "pg01").Return(nil)
 
-	go etcd{
-		watcher:   watcher,
-		namespace: "/postgres",
-		handlers: map[string]Handler{
-			"/master": handler,
-		},
-	}.Start(ctx)
+	go etcd{watcher: watcher, namespace: "/postgres"}.Start(ctx, map[string]Handler{
+		"/master": handler,
+	})
 
 	select {
 	case <-done:

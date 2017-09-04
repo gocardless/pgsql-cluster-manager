@@ -127,14 +127,17 @@ func App(logger *logrus.Logger) *cli.App {
 					return cli.NewExitError(err.Error(), 1)
 				}
 
-				sub := subscriber.NewLoggingSubscriber(logger, subscriber.NewEtcd(etcd, c.GlobalString("etcd-namespace")))
-				sub.RegisterHandler(
-					c.String("pgbouncer-host-key"),
-					&pgbouncer.HostChanger{createPGBouncer(c)},
-				)
-
 				ctx, cancel := context.WithCancel(context.Background())
-				go sub.Start(ctx)
+				sub := subscriber.NewEtcd(etcd, c.GlobalString("etcd-namespace"))
+
+				go subscriber.Log(logger, sub).Start(
+					ctx, map[string]subscriber.Handler{
+						// Listen for changes to pgbouncer-host-key, and reload pgbouncer
+						c.String("pgbouncer-host-key"): &pgbouncer.HostChanger{
+							createPGBouncer(c),
+						},
+					},
+				)
 
 				return cancelOnSignal(cancel, logger, "Received %s, shutting down proxy daemon...")
 			},

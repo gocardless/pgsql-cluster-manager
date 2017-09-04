@@ -6,6 +6,18 @@ import (
 	"golang.org/x/net/context"
 )
 
+type FakeSubscriber struct{ mock.Mock }
+
+func (s FakeSubscriber) Start(ctx context.Context, handlers map[string]Handler) error {
+	args := s.Called(ctx, handlers)
+	return args.Error(0)
+}
+
+func (s FakeSubscriber) work(handler Handler, key string, value string) error {
+	args := s.Called(handler, key, value)
+	return args.Error(0)
+}
+
 type FakeWatcher struct{ mock.Mock }
 
 func (w FakeWatcher) Watch(ctx context.Context, key string, opts ...clientv3.OpOption) clientv3.WatchChan {
