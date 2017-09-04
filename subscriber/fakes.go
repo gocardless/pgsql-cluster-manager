@@ -26,15 +26,9 @@ func (w FakeWatcher) Close() error {
 	return args.Error(0)
 }
 
-type FakeHandler struct {
-	mock.Mock
-	_Run func(string, string) error
-}
+type FakeHandler struct{ mock.Mock }
 
 func (h FakeHandler) Run(key, value string) error {
 	args := h.Called(key, value)
-	if h._Run != nil {
-		h._Run(key, value)
-	}
 	return args.Error(0)
 }

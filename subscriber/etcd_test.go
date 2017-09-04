@@ -38,15 +38,12 @@ func TestStart_CallsHandlersOnEvents(t *testing.T) {
 		On("Watch", ctx, "/postgres", mock.AnythingOfType("[]clientv3.OpOption")).
 		Return((clientv3.WatchChan)(watchChan))
 
-	handler := FakeHandler{
-		_Run: func(key, value string) error {
-			done <- struct{}{}
-			return nil
-		},
-	}
+	handler := FakeHandler{}
 
 	// Expect that we receive the key without the namespace prefix
-	handler.On("Run", "/master", "pg01").Return(nil)
+	handler.On("Run", "/master", "pg01").Return(nil).Run(func(args mock.Arguments) {
+		done <- struct{}{}
+	})
 
 	go etcd{watcher: watcher, namespace: "/postgres"}.Start(ctx, map[string]Handler{
 		"/master": handler,
