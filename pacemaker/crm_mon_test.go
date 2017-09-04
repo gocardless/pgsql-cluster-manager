@@ -54,7 +54,7 @@ func TestGet(t *testing.T) {
 
 			executor.On("CombinedOutput", "crm_mon", []string{"--as-xml"}).Return(fixture, nil)
 
-			node, err := crmMon.Get("crm_mon/resources/resource[@id='PostgresqlVIP']/node[@name]")
+			nodes, err := crmMon.Get("crm_mon/resources/resource[@id='PostgresqlVIP']/node[@name]")
 
 			executor.AssertExpectations(t)
 
@@ -65,7 +65,8 @@ func TestGet(t *testing.T) {
 			}
 
 			if tc.value != "" {
-				assert.Equal(t, tc.value, node.SelectAttrValue("name", ""))
+				assert.Equal(t, 1, len(nodes), "expected only one node result")
+				assert.Equal(t, tc.value, nodes[0].SelectAttrValue("name", ""))
 			}
 		})
 	}

@@ -32,10 +32,11 @@ func NewCrmMon(timeout time.Duration) *CrmMon {
 	return &CrmMon{systemExecutor{timeout}}
 }
 
-// Get returns a node from the crm_mon XML output, extracted using the given xpath. If we
+// Get returns nodes from the crm_mon XML output, extracted using the given XPaths. If we
 // detect that pacemaker does not have quorum, then we error, as we should be able to rely
 // on values being correct with respect to the quorate.
-func (c CrmMon) Get(xpath string) (*etree.Element, error) {
+func (c CrmMon) Get(xpaths ...string) ([]*etree.Element, error) {
+	nodes := make([]*etree.Element, 0)
 	xmlOutput, err := c.CombinedOutput("crm_mon", "--as-xml")
 
 	if err != nil {
@@ -53,5 +54,9 @@ func (c CrmMon) Get(xpath string) (*etree.Element, error) {
 		return nil, errors.New("Cannot find designated controller with quorum")
 	}
 
-	return doc.FindElement(xpath), nil
+	for _, xpath := range xpaths {
+		nodes = append(nodes, doc.FindElement(xpath))
+	}
+
+	return nodes, nil
 }
