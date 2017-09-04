@@ -17,3 +17,7 @@
 [[constraint]]
   branch = "master"
   name = "golang.org/x/crypto"
+
+[[constraint]]
+  name = "github.com/beevik/etree"
+  version = "0.0.0"
