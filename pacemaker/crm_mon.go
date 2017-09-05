@@ -9,6 +9,15 @@ import (
 	"github.com/beevik/etree"
 )
 
+// CrmMon wraps the crm_mon executable provided by pacemaker, that queries the cib and
+// outputs information on node roles. crm_mon was chosen over cibadmin (which provides
+// direct querying of the cib) because the output from cibadmin only indirectly specifies
+// which resources are present in which node.
+//
+// Trying to detect a Postgres primary from the cibadmin output could only be achieved by
+// searching for the node where Postgresql-data-status was LATEST, for example, which is
+// much less direct than using crm_mon's output where the location of the PostgresqlVIP is
+// clear.
 type CrmMon struct {
 	executor
 }

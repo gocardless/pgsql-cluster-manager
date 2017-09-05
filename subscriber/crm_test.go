@@ -63,19 +63,69 @@ func TestStart(t *testing.T) {
 			[]string{"/resource[@id='PostgresqlVIP']"},
 			[][]*etree.Element{
 				makeResources("larry"),
-				makeResources("larry"),
 				makeResources("moe"),
-				makeResources("moe"),
-				makeResources("curly"),
 			},
 			func() map[string]Handler {
 				handler := new(FakeHandler)
 
 				handler.On("Run", "/master", "larry").Return(nil).Once()
 				handler.On("Run", "/master", "moe").Return(nil).Once()
-				handler.On("Run", "/master", "curly").Return(nil).Once()
 
 				return map[string]Handler{"/master": handler}
+			}(),
+		},
+		{
+			"when nodes don't change between polling, handler is only called once",
+			[]*CrmNode{
+				&CrmNode{
+					Alias:     "/master",
+					XPath:     "/resource[@id='PostgresqlVIP']",
+					Attribute: "name",
+				},
+			},
+			[]string{"/resource[@id='PostgresqlVIP']"},
+			[][]*etree.Element{
+				makeResources("larry"),
+				makeResources("larry"),
+				makeResources("larry"),
+			},
+			func() map[string]Handler {
+				handler := new(FakeHandler)
+				handler.On("Run", "/master", "larry").Return(nil).Once()
+
+				return map[string]Handler{"/master": handler}
+			}(),
+		},
+		{
+			"when watching multiple nodes, we call the right handlers",
+			[]*CrmNode{
+				&CrmNode{
+					Alias:     "/master",
+					XPath:     "/resource[@id='PostgresqlVIP']",
+					Attribute: "name",
+				},
+				&CrmNode{
+					Alias:     "/pgbouncer",
+					XPath:     "/resource[@id='PgBouncerVIP']",
+					Attribute: "name",
+				},
+			},
+			[]string{"/resource[@id='PostgresqlVIP']", "/resource[@id='PgBouncerVIP']"},
+			[][]*etree.Element{
+				makeResources("larry", "curly"),
+				makeResources("larry", "moe"),
+				makeResources("curly", "moe"),
+			},
+			func() map[string]Handler {
+				masterHandler := new(FakeHandler)
+				masterHandler.On("Run", "/master", "larry").Return(nil).Once()
+				masterHandler.On("Run", "/master", "curly").Return(nil).Once()
+
+				bouncerHandler := new(FakeHandler)
+				bouncerHandler.On("Run", "/pgbouncer", "curly").Return(nil).Once()
+				bouncerHandler.On("Run", "/pgbouncer", "moe").Return(nil).Once()
+
+				return map[string]Handler{"/master": masterHandler, "/pgbouncer": bouncerHandler}
 			}(),
 		},
 	}
