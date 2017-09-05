@@ -33,31 +33,26 @@ func fakeTicker(ctx context.Context) (*time.Ticker, func()) {
 }
 
 func TestStart(t *testing.T) {
-	makeElement := func(tag, attr, value string) []*etree.Element {
-		element := etree.NewElement("resource")
-		element.CreateAttr(attr, value)
+	makeResources := func(values ...string) []*etree.Element {
+		elements := make([]*etree.Element, len(values))
 
-		return []*etree.Element{element}
+		for idx, value := range values {
+			elements[idx] = etree.NewElement("resource")
+			elements[idx].CreateAttr("name", value)
+		}
+
+		return elements
 	}
 
-	t.Run("when node changes, calls handler", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		ticker, tick := fakeTicker(ctx)
-
-		crmMon := new(fakeCrmMon)
-		crmMonGet := func() *mock.Call { return crmMon.On("Get", []string{"/resource[@id='PostgresqlVIP']"}) }
-
-		crmMonGet().Return(makeElement("resource", "name", "larry"), nil).Times(2)
-		crmMonGet().Return(makeElement("resource", "name", "moe"), nil).Times(2)
-		crmMonGet().Return(makeElement("resource", "name", "curly"), nil).Once()
-
-		crmMonGet().Return([]*etree.Element{}, errors.New("out of stubs"))
-
-		crm := NewCrm(
-			crmMon,
-			func() *time.Ticker { return ticker },
+	testCases := []struct {
+		name       string
+		nodes      []*CrmNode
+		getParams  []string
+		getResults [][]*etree.Element
+		handlers   map[string]Handler
+	}{
+		{
+			"when node changes, handler is called",
 			[]*CrmNode{
 				&CrmNode{
 					Alias:     "/master",
@@ -65,38 +60,72 @@ func TestStart(t *testing.T) {
 					Attribute: "name",
 				},
 			},
-		)
+			[]string{"/resource[@id='PostgresqlVIP']"},
+			[][]*etree.Element{
+				makeResources("larry"),
+				makeResources("larry"),
+				makeResources("moe"),
+				makeResources("moe"),
+				makeResources("curly"),
+			},
+			func() map[string]Handler {
+				handler := new(FakeHandler)
 
-		handler := new(FakeHandler)
+				handler.On("Run", "/master", "larry").Return(nil).Once()
+				handler.On("Run", "/master", "moe").Return(nil).Once()
+				handler.On("Run", "/master", "curly").Return(nil).Once()
 
-		handler.On("Run", "/master", "larry").Return(nil).Once()
-		handler.On("Run", "/master", "moe").Return(nil).Once()
-		handler.On("Run", "/master", "curly").Return(nil).Once()
+				return map[string]Handler{"/master": handler}
+			}(),
+		},
+	}
 
-		done := make(chan error, 1)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
 
-		go func() {
-			done <- crm.Start(ctx, map[string]Handler{
-				"/master": handler,
-			})
-		}()
-
-		// Wait for the subscriber to conclude, or for us to time out
-		require.Nil(t, func() error {
-			timeout := time.After(time.Second)
-
-			for {
-				select {
-				case <-done:
-					return nil
-				case <-timeout:
-					return errors.New("timed out")
-				default:
-					tick()
-				}
+			// Stub crmMon to expect the given tc.getParams, returning tc.getResults. The last
+			// stub will be an error, which will cause Start to finish executing.
+			crmMon := new(fakeCrmMon)
+			for _, results := range tc.getResults {
+				crmMon.On("Get", tc.getParams).Return(results, nil).Once()
 			}
-		}())
+			crmMon.On("Get", tc.getParams).Return([]*etree.Element{}, errors.New("out of stubs"))
 
-		handler.AssertExpectations(t)
-	})
+			ticker, tick := fakeTicker(ctx)
+			done := make(chan error, 1)
+
+			// Start the subscriber, which is controlled by our fake ticker
+			go func() {
+				done <- NewCrm(crmMon, func() *time.Ticker { return ticker }, tc.nodes).Start(
+					ctx, tc.handlers,
+				)
+			}()
+
+			// Wait for the subscriber to conclude, or for us to timeout
+			require.Nil(t, func() error {
+				timeout := time.After(time.Second)
+
+				for {
+					select {
+					case <-done:
+						return nil
+					case <-timeout:
+						return errors.New("timed out")
+					default:
+						tick()
+					}
+				}
+			}())
+
+			// Verify all our handlers have received the calls we expected them to
+			for _, handler := range tc.handlers {
+				fakeHandler, ok := handler.(*FakeHandler)
+				require.True(t, ok)
+
+				fakeHandler.AssertExpectations(t)
+			}
+		})
+	}
 }
