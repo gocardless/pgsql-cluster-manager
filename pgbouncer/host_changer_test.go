@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gocardless/pgsql-novips/pgbouncer"
-	"github.com/gocardless/pgsql-novips/subscriber"
-	"github.com/gocardless/pgsql-novips/testHelpers"
+	"github.com/gocardless/pgsql-cluster-manager/pgbouncer"
+	"github.com/gocardless/pgsql-cluster-manager/subscriber"
+	"github.com/gocardless/pgsql-cluster-manager/testHelpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

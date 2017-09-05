@@ -1,4 +1,4 @@
-# pgsql-novips [![CircleCI](https://circleci.com/gh/gocardless/pgsql-novips.svg?style=svg&circle-token=38c8f4dc817216aa6a02b3bf67435fe2f1d72189)](https://circleci.com/gh/gocardless/pgsql-novips)
+# pgsql-cluster-manager [![CircleCI](https://circleci.com/gh/gocardless/pgsql-cluster-manager.svg?style=svg&circle-token=38c8f4dc817216aa6a02b3bf67435fe2f1d72189)](https://circleci.com/gh/gocardless/pgsql-cluster-manager)
 
 https://paper.dropbox.com/doc/Postgres-Clustering-V2-d9N8n4cWuXZPeyTdeEpXw
 
@@ -26,7 +26,7 @@ ignore_startup_parameters = extra_float_digits
 ## CircleCI
 
 We build a custom Docker image for CircleCI builds that is hosted at
-gocardless/pgsql-novips-circleci on Docker Hub. The Dockerfile lives at
+gocardless/pgsql-cluster-manager-circleci on Docker Hub. The Dockerfile lives at
 `.circleci/Dockerfile`, and there is a make target to build and push the image.
 
 To publish a new version of the Docker image, run:

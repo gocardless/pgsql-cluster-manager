@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/coreos/etcd/clientv3"
-	"github.com/gocardless/pgsql-novips/pgbouncer"
-	"github.com/gocardless/pgsql-novips/subscriber"
+	"github.com/gocardless/pgsql-cluster-manager/pgbouncer"
+	"github.com/gocardless/pgsql-cluster-manager/subscriber"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 	"golang.org/x/crypto/ssh/terminal"
@@ -39,11 +39,11 @@ func main() {
 	App(logger).Run(os.Args)
 }
 
-// App generates a command-line application that is the entrypoint for pgsql-novips
+// App generates a command-line application that is the entrypoint for pgsql-cluster-manager
 func App(logger *logrus.Logger) *cli.App {
 	app := cli.NewApp()
 
-	app.Name = "pgsql-novips"
+	app.Name = "pgsql-cluster-manager"
 	app.Usage = "Control Postgres clusters through etcd configuration"
 	app.Version = version
 

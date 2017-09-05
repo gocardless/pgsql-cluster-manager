@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gocardless/pgsql-novips/pgbouncer"
+	"github.com/gocardless/pgsql-cluster-manager/pgbouncer"
 	"github.com/stretchr/testify/require"
 )
 

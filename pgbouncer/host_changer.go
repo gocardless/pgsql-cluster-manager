@@ -1,7 +1,7 @@
 package pgbouncer
 
 import (
-	"github.com/gocardless/pgsql-novips/monad"
+	"github.com/gocardless/pgsql-cluster-manager/monad"
 )
 
 type HostChanger struct {
