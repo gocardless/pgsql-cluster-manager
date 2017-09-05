@@ -34,14 +34,10 @@ func (s etcd) Start(ctx context.Context, handlers map[string]Handler) error {
 			handler := handlers[key]
 
 			if handler != nil {
-				s.work(handler, key, value)
+				handler.Run(key, value)
 			}
 		}
 	}
 
 	return nil
-}
-
-func (s etcd) work(handler Handler, key, value string) error {
-	return handler.Run(key, value)
 }

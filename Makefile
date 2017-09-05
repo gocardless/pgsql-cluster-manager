@@ -10,7 +10,7 @@ build:
 	$(BUILD_COMMAND) -o $(PROG) *.go
 
 test:
-	go test -v $(PACKAGES)
+	go test $(PACKAGES)
 
 lint:
 	golint $(PACKAGES)

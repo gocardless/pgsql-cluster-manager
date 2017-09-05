@@ -2,7 +2,10 @@ package subscriber
 
 import (
 	"errors"
+	"fmt"
 	"testing"
+
+	"golang.org/x/net/context"
 
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
@@ -34,19 +37,35 @@ func TestLog(t *testing.T) {
 			nil,
 			[]logEntry{
 				logEntry{
+					Message: "Starting...",
+					Data: logrus.Fields{
+						"subscriber":  "subscriber.FakeSubscriber",
+						"handlerKeys": "[key]",
+					},
+				},
+				logEntry{
 					Message: "Running...",
 					Data: logrus.Fields{
-						"handler": "FakeHandler",
-						"key":     "key",
-						"value":   "value",
+						"handler":    "subscriber.FakeHandler",
+						"subscriber": "subscriber.FakeSubscriber",
+						"key":        "key",
+						"value":      "value",
 					},
 				},
 				logEntry{
 					Message: "Finished!",
 					Data: logrus.Fields{
-						"handler": "FakeHandler",
-						"key":     "key",
-						"value":   "value",
+						"handler":    "subscriber.FakeHandler",
+						"subscriber": "subscriber.FakeSubscriber",
+						"key":        "key",
+						"value":      "value",
+					},
+				},
+				logEntry{
+					Message: "Finished!",
+					Data: logrus.Fields{
+						"subscriber":  "subscriber.FakeSubscriber",
+						"handlerKeys": "[key]",
 					},
 				},
 			},
@@ -59,28 +78,36 @@ func TestLog(t *testing.T) {
 			},
 			[]logEntry{
 				logEntry{
+					Message: "Starting...",
+					Data: logrus.Fields{
+						"subscriber":  "subscriber.FakeSubscriber",
+						"handlerKeys": "[key]",
+					},
+				},
+				logEntry{
 					Message: "Running...",
 					Data: logrus.Fields{
-						"handler": "FakeHandler",
-						"key":     "key",
-						"value":   "value",
+						"handler":    "subscriber.FakeHandler",
+						"subscriber": "subscriber.FakeSubscriber",
+						"key":        "key",
+						"value":      "value",
 					},
 				},
 				logEntry{
 					Message: "uh oh",
 					Data: logrus.Fields{
-						"handler": "FakeHandler",
-						"key":     "key",
-						"value":   "value",
-						"error":   "spaghettios",
+						"handler":    "subscriber.FakeHandler",
+						"subscriber": "subscriber.FakeSubscriber",
+						"key":        "key",
+						"value":      "value",
+						"error":      "spaghettios",
 					},
 				},
 				logEntry{
 					Message: "Finished!",
 					Data: logrus.Fields{
-						"handler": "FakeHandler",
-						"key":     "key",
-						"value":   "value",
+						"subscriber":  "subscriber.FakeSubscriber",
+						"handlerKeys": "[key]",
 					},
 				},
 			},
@@ -90,15 +117,27 @@ func TestLog(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			logger, hook := test.NewNullLogger()
-			sub := new(FakeSubscriber)
 			handler := FakeHandler{}
 
-			sub.On("work", handler, "key", "value").Return(tc.handlerError).Once()
-			Log(logger, sub).work(handler, "key", "value")
-			sub.AssertExpectations(t)
+			sub := FakeSubscriber{
+				_Start: func(ctx context.Context, handlers map[string]Handler) error {
+					handlers["key"].Run("key", "value")
+					return nil
+				},
+			}
+
+			handler.On("Run", "key", "value").Return(tc.handlerError).Once()
+
+			Log(logger, sub).Start(context.Background(), map[string]Handler{"key": handler})
+
+			handler.AssertExpectations(t)
+
+			for _, e := range hook.Entries {
+				fmt.Printf("%#v\n", e.Message)
+			}
 
 			for idx, expected := range tc.logEntries {
-				assert.Equal(t, logEntry{hook.Entries[idx].Message, hook.Entries[idx].Data}, expected)
+				assert.Equal(t, expected, logEntry{hook.Entries[idx].Message, hook.Entries[idx].Data})
 			}
 		})
 	}
