@@ -11,8 +11,10 @@ import (
 
 	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/clientv3/namespace"
+	"github.com/gocardless/pgsql-cluster-manager/pacemaker"
 	"github.com/gocardless/pgsql-cluster-manager/pgbouncer"
 	"github.com/gocardless/pgsql-cluster-manager/subscriber"
+	"github.com/gocardless/pgsql-cluster-manager/sync"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 	"golang.org/x/crypto/ssh/terminal"
@@ -157,10 +159,22 @@ func App(logger *logrus.Logger) *cli.App {
 						Value:  "/master",
 					},
 					cli.StringFlag{
+						Name:   "postgres-master-crm-xpath",
+						EnvVar: "POSTGRES_MASTER_CRM_XPATH",
+						Usage:  "XPath query into crm_mon's XML output for the Postgres master",
+						Value:  "crm_mon/resources/resource[@id='PostgresqlVIP']/node[@name]",
+					},
+					cli.StringFlag{
 						Name:   "pgbouncer-master-etcd-key",
 						EnvVar: "PGBOUNCER_MASTER_ETCD_KEY",
 						Usage:  "(namespaces) etcd key that specifies the PGBouncer primary",
 						Value:  "/pgbouncer",
+					},
+					cli.StringFlag{
+						Name:   "pgbouncer-master-crm-xpath",
+						EnvVar: "PGBOUNCER_MASTER_CRM_XPATH",
+						Usage:  "XPath query into crm_mon's XML output for the PGBouncer primary",
+						Value:  "crm_mon/resources/resource[@id='PgBouncerVIP']/node[@name]",
 					},
 				}...,
 			),
@@ -169,7 +183,41 @@ func App(logger *logrus.Logger) *cli.App {
 					return cli.NewExitError(err, 1)
 				}
 
-				return cli.NewExitError("Bailing, you haven't implemented 'cluster' yet", 1)
+				etcd, err := createEtcdConnection(c)
+
+				if err != nil {
+					return cli.NewExitError(err.Error(), 1)
+				}
+
+				ctx, cancel := context.WithCancel(context.Background())
+
+				sub := subscriber.NewCrm(
+					pacemaker.NewCrmMon(time.Second),
+					func() *time.Ticker { return time.NewTicker(500 * time.Millisecond) },
+					[]*subscriber.CrmNode{
+						&subscriber.CrmNode{
+							Alias:     c.String("postgres-master-etcd-key"),
+							XPath:     c.String("postgres-master-crm-key"),
+							Attribute: "name",
+						},
+						&subscriber.CrmNode{
+							Alias:     c.String("pgbouncer-master-etcd-key"),
+							XPath:     c.String("pgbouncer-master-crm-key"),
+							Attribute: "name",
+						},
+					},
+				)
+
+				etcdUpdater := sync.EtcdUpdater{etcd}
+
+				go subscriber.Log(logger, sub).Start(
+					ctx, map[string]subscriber.Handler{
+						c.String("postgres-master-etcd-key"):  &etcdUpdater,
+						c.String("pgbouncer-master-etcd-key"): &etcdUpdater,
+					},
+				)
+
+				return cancelOnSignal(cancel, logger, "Received %s, shutting down cluster daemon...")
 			},
 		},
 	}
