@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/coreos/etcd/clientv3"
+	"github.com/coreos/etcd/clientv3/namespace"
 	"github.com/gocardless/pgsql-cluster-manager/pgbouncer"
 	"github.com/gocardless/pgsql-cluster-manager/subscriber"
 	"github.com/sirupsen/logrus"
@@ -128,7 +129,7 @@ func App(logger *logrus.Logger) *cli.App {
 				}
 
 				ctx, cancel := context.WithCancel(context.Background())
-				sub := subscriber.NewEtcd(etcd, c.GlobalString("etcd-namespace"))
+				sub := subscriber.NewEtcd(etcd)
 
 				go subscriber.Log(logger, sub).Start(
 					ctx, map[string]subscriber.Handler{
@@ -199,6 +200,7 @@ func createPGBouncer(c *cli.Context) pgbouncer.PGBouncer {
 func createEtcdConnection(c *cli.Context) (*clientv3.Client, error) {
 	hosts := c.GlobalString("etcd-hosts")
 	timeout := c.GlobalInt("etcd-timeout")
+	etcdNamespace := c.GlobalString("etcd-namespace")
 
 	client, err := clientv3.New(
 		clientv3.Config{
@@ -210,6 +212,12 @@ func createEtcdConnection(c *cli.Context) (*clientv3.Client, error) {
 	if err == nil {
 		return client, err
 	}
+
+	// We should namespace all our etcd queries, so that we can run assuming we have our own
+	// private etcd instance.
+	client.KV = namespace.NewKV(client.KV, etcdNamespace)
+	client.Watcher = namespace.NewWatcher(client.Watcher, etcdNamespace)
+	client.Lease = namespace.NewLease(client.Lease, etcdNamespace)
 
 	return client, fmt.Errorf("Failed to connect to etcd: %v", hosts)
 }

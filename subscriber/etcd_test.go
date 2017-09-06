@@ -26,7 +26,7 @@ func TestStart_CallsHandlersOnEvents(t *testing.T) {
 
 	watchChan := make(chan clientv3.WatchResponse, 1)
 	watchChan <- clientv3.WatchResponse{
-		Events: []*clientv3.Event{mockEvent("/postgres/master", "pg01")},
+		Events: []*clientv3.Event{mockEvent("/master", "pg01")},
 	}
 
 	done := make(chan interface{}, 1)
@@ -35,7 +35,7 @@ func TestStart_CallsHandlersOnEvents(t *testing.T) {
 	defer close(done)
 
 	watcher.
-		On("Watch", ctx, "/postgres", mock.AnythingOfType("[]clientv3.OpOption")).
+		On("Watch", ctx, "/", mock.AnythingOfType("[]clientv3.OpOption")).
 		Return((clientv3.WatchChan)(watchChan))
 
 	handler := FakeHandler{
@@ -48,7 +48,7 @@ func TestStart_CallsHandlersOnEvents(t *testing.T) {
 	// Expect that we receive the key without the namespace prefix
 	handler.On("Run", "/master", "pg01").Return(nil)
 
-	go etcd{watcher: watcher, namespace: "/postgres"}.Start(ctx, map[string]Handler{
+	go etcd{watcher: watcher}.Start(ctx, map[string]Handler{
 		"/master": handler,
 	})
 

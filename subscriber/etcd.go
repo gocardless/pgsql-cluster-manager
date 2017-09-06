@@ -1,40 +1,35 @@
 package subscriber
 
 import (
-	"strings"
-
 	"github.com/coreos/etcd/clientv3"
 	"golang.org/x/net/context"
 )
 
 type etcd struct {
-	watcher   clientv3.Watcher
-	handlers  map[string]Handler
-	namespace string
+	watcher  clientv3.Watcher
+	handlers map[string]Handler
 }
 
 // NewEtcd generates a Daemon with a watcher constructed using the given etcd config
-func NewEtcd(watcher clientv3.Watcher, namespace string) Subscriber {
+func NewEtcd(watcher clientv3.Watcher) Subscriber {
 	return &etcd{
-		watcher:   watcher,
-		namespace: namespace,
-		handlers:  make(map[string]Handler),
+		watcher:  watcher,
+		handlers: make(map[string]Handler),
 	}
 }
 
-// Start creates a new etcd watcher, subscribed to keys within namespace, and will trigger
-// handlers that match the given key when values change.
+// Start creates a new etcd watcher, and will trigger handlers that match the given key
+// when values change.
 func (s etcd) Start(ctx context.Context, handlers map[string]Handler) error {
-	watcher := s.watcher.Watch(ctx, s.namespace, clientv3.WithPrefix())
+	watcher := s.watcher.Watch(ctx, "/", clientv3.WithPrefix())
 
 	for watcherResponse := range watcher {
 		for _, event := range watcherResponse.Events {
-			key := strings.TrimPrefix(string(event.Kv.Key), s.namespace)
-			value := string(event.Kv.Value)
+			key := string(event.Kv.Key)
 			handler := handlers[key]
 
 			if handler != nil {
-				handler.Run(key, value)
+				handler.Run(key, string(event.Kv.Value))
 			}
 		}
 	}
