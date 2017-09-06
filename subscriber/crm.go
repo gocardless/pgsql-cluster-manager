@@ -91,6 +91,10 @@ func (s crm) updateNodes(updated chan *CrmNode) error {
 	}
 
 	for idx, node := range s.nodes {
+		if elements[idx] == nil {
+			break // the node may not be in the cib
+		}
+
 		value := elements[idx].SelectAttrValue(node.Attribute, "")
 
 		if node.value != value {
