@@ -197,12 +197,12 @@ func App(logger *logrus.Logger) *cli.App {
 					[]*subscriber.CrmNode{
 						&subscriber.CrmNode{
 							Alias:     c.String("postgres-master-etcd-key"),
-							XPath:     c.String("postgres-master-crm-key"),
+							XPath:     c.String("postgres-master-crm-xpath"),
 							Attribute: "name",
 						},
 						&subscriber.CrmNode{
 							Alias:     c.String("pgbouncer-master-etcd-key"),
-							XPath:     c.String("pgbouncer-master-crm-key"),
+							XPath:     c.String("pgbouncer-master-crm-xpath"),
 							Attribute: "name",
 						},
 					},
