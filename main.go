@@ -257,17 +257,17 @@ func createEtcdConnection(c *cli.Context) (*clientv3.Client, error) {
 		},
 	)
 
+	if err != nil {
+		return client, err
+	}
+
 	// We should namespace all our etcd queries, so that we can run assuming we have our own
 	// private etcd instance.
 	client.KV = namespace.NewKV(client.KV, etcdNamespace)
 	client.Watcher = namespace.NewWatcher(client.Watcher, etcdNamespace)
 	client.Lease = namespace.NewLease(client.Lease, etcdNamespace)
 
-	if err == nil {
-		return client, err
-	}
-
-	return client, fmt.Errorf("Failed to connect to etcd: %v", hosts)
+	return client, err
 }
 
 func checkMissingFlags(c *cli.Context) error {

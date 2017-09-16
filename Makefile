@@ -15,7 +15,7 @@ test:
 lint:
 	golint $(PACKAGES)
 
-deb: test $(PROG).linux_amd64
+deb: $(PROG).linux_amd64
 	rm -fv *.deb
 	bundle exec fpm -s dir -t $@ -n $(PROG) -v $(VERSION) \
 		--architecture amd64 \
