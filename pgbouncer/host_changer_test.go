@@ -5,18 +5,22 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gocardless/pgsql-cluster-manager/etcd"
 	"github.com/gocardless/pgsql-cluster-manager/pgbouncer"
-	"github.com/gocardless/pgsql-cluster-manager/subscriber"
 	"github.com/gocardless/pgsql-cluster-manager/testHelpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+type handler interface {
+	Run(string, string) error
+}
+
 func TestHostChanger(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	etcd := testHelpers.StartEtcd(t, ctx)
+	etcdClient := testHelpers.StartEtcd(t, ctx)
 	bouncer := testHelpers.StartPGBouncer(t, ctx)
 
 	showDatabase := func(name string) *pgbouncer.Database {
@@ -51,8 +55,8 @@ func TestHostChanger(t *testing.T) {
 	}
 
 	t.Run("changes PGBouncer database host in response to etcd key changes", func(t *testing.T) {
-		go subscriber.NewEtcd(etcd).Start(
-			ctx, map[string]subscriber.Handler{
+		go etcd.NewSubscriber(etcdClient).Start(
+			ctx, map[string]etcd.Handler{
 				"/master": pgbouncer.HostChanger{bouncer},
 			},
 		)
@@ -60,7 +64,7 @@ func TestHostChanger(t *testing.T) {
 		database := showDatabase("postgres")
 		require.Equal(t, database.Host, "{{.Host}}", "expected initial host to be from template")
 
-		_, err := etcd.Put(ctx, "/master", "pg01")
+		_, err := etcdClient.Put(ctx, "/master", "pg01")
 		require.Nil(t, err)
 
 		databaseAfterChange := waitForHostToBecome(database, "pg01")

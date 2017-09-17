@@ -1,4 +1,4 @@
-package sync
+package etcd
 
 import (
 	"context"
@@ -27,22 +27,22 @@ func generateKey() string {
 	return fmt.Sprintf("/%s", keyBytes)
 }
 
-func TestEtcdUpdater(t *testing.T) {
+func TestUpdater(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	etcd := testHelpers.StartEtcd(t, ctx)
-	updater := EtcdUpdater{etcd}
+	client := testHelpers.StartEtcd(t, ctx)
+	updater := Updater{client}
 
 	put := func(key, value string) *clientv3.PutResponse {
-		resp, err := etcd.Put(context.Background(), key, value)
+		resp, err := client.Put(context.Background(), key, value)
 		require.Nil(t, err)
 
 		return resp
 	}
 
 	get := func(key string) *clientv3.GetResponse {
-		resp, err := etcd.Get(context.Background(), key)
+		resp, err := client.Get(context.Background(), key)
 		require.Nil(t, err)
 
 		return resp
