@@ -1,4 +1,4 @@
-package subscriber
+package pacemaker
 
 import (
 	"errors"
@@ -17,6 +17,13 @@ type fakeCrmMon struct{ mock.Mock }
 func (c fakeCrmMon) Get(xpaths ...string) ([]*etree.Element, error) {
 	args := c.Called(xpaths)
 	return args.Get(0).([]*etree.Element), args.Error(1)
+}
+
+type fakeHandler struct{ mock.Mock }
+
+func (h fakeHandler) Run(key, value string) error {
+	args := h.Called(key, value)
+	return args.Error(0)
 }
 
 func fakeTicker(ctx context.Context) (*time.Ticker, func()) {
@@ -46,15 +53,15 @@ func TestStart(t *testing.T) {
 
 	testCases := []struct {
 		name       string
-		nodes      []*CrmNode
+		nodes      []*crmNode
 		getParams  []string
 		getResults [][]*etree.Element
-		handlers   map[string]Handler
+		handlers   map[string]handler
 	}{
 		{
 			"when node changes, handler is called",
-			[]*CrmNode{
-				&CrmNode{
+			[]*crmNode{
+				&crmNode{
 					Alias:     "/master",
 					XPath:     "/resource[@id='PostgresqlVIP']",
 					Attribute: "name",
@@ -65,19 +72,19 @@ func TestStart(t *testing.T) {
 				makeResources("larry"),
 				makeResources("moe"),
 			},
-			func() map[string]Handler {
-				handler := new(FakeHandler)
+			func() map[string]handler {
+				h := new(fakeHandler)
 
-				handler.On("Run", "/master", "larry").Return(nil).Once()
-				handler.On("Run", "/master", "moe").Return(nil).Once()
+				h.On("Run", "/master", "larry").Return(nil).Once()
+				h.On("Run", "/master", "moe").Return(nil).Once()
 
-				return map[string]Handler{"/master": handler}
+				return map[string]handler{"/master": h}
 			}(),
 		},
 		{
 			"when nodes don't change between polling, handler is only called once",
-			[]*CrmNode{
-				&CrmNode{
+			[]*crmNode{
+				&crmNode{
 					Alias:     "/master",
 					XPath:     "/resource[@id='PostgresqlVIP']",
 					Attribute: "name",
@@ -89,22 +96,22 @@ func TestStart(t *testing.T) {
 				makeResources("larry"),
 				makeResources("larry"),
 			},
-			func() map[string]Handler {
-				handler := new(FakeHandler)
-				handler.On("Run", "/master", "larry").Return(nil).Once()
+			func() map[string]handler {
+				h := new(fakeHandler)
+				h.On("Run", "/master", "larry").Return(nil).Once()
 
-				return map[string]Handler{"/master": handler}
+				return map[string]handler{"/master": h}
 			}(),
 		},
 		{
 			"when watching multiple nodes, we call the right handlers",
-			[]*CrmNode{
-				&CrmNode{
+			[]*crmNode{
+				&crmNode{
 					Alias:     "/master",
 					XPath:     "/resource[@id='PostgresqlVIP']",
 					Attribute: "name",
 				},
-				&CrmNode{
+				&crmNode{
 					Alias:     "/pgbouncer",
 					XPath:     "/resource[@id='PgBouncerVIP']",
 					Attribute: "name",
@@ -116,16 +123,16 @@ func TestStart(t *testing.T) {
 				makeResources("larry", "moe"),
 				makeResources("curly", "moe"),
 			},
-			func() map[string]Handler {
-				masterHandler := new(FakeHandler)
+			func() map[string]handler {
+				masterHandler := new(fakeHandler)
 				masterHandler.On("Run", "/master", "larry").Return(nil).Once()
 				masterHandler.On("Run", "/master", "curly").Return(nil).Once()
 
-				bouncerHandler := new(FakeHandler)
+				bouncerHandler := new(fakeHandler)
 				bouncerHandler.On("Run", "/pgbouncer", "curly").Return(nil).Once()
 				bouncerHandler.On("Run", "/pgbouncer", "moe").Return(nil).Once()
 
-				return map[string]Handler{"/master": masterHandler, "/pgbouncer": bouncerHandler}
+				return map[string]handler{"/master": masterHandler, "/pgbouncer": bouncerHandler}
 			}(),
 		},
 	}
@@ -135,22 +142,30 @@ func TestStart(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			// Stub crmMon to expect the given tc.getParams, returning tc.getResults. The last
-			// stub will be an error, which will cause Start to finish executing.
+			// Stub crmMon to expect the given tc.getParams, returning tc.getResults.
 			crmMon := new(fakeCrmMon)
 			for _, results := range tc.getResults {
 				crmMon.On("Get", tc.getParams).Return(results, nil).Once()
 			}
-			crmMon.On("Get", tc.getParams).Return([]*etree.Element{}, errors.New("out of stubs"))
+
+			// This last stub will cancel our context, causing the watch to come to an end
+			crmMon.On("Get", tc.getParams).Return(tc.getResults[len(tc.getResults)-1], nil).
+				Run(func(args mock.Arguments) {
+					cancel()
+				})
 
 			ticker, tick := fakeTicker(ctx)
 			done := make(chan error, 1)
 
 			// Start the subscriber, which is controlled by our fake ticker
 			go func() {
-				done <- NewCrm(crmMon, func() *time.Ticker { return ticker }, tc.nodes).Start(
-					ctx, tc.handlers,
-				)
+				s := subscriber{
+					crmStore:  crmMon,
+					nodes:     tc.nodes,
+					newTicker: func() *time.Ticker { return ticker },
+				}
+
+				done <- s.Start(ctx, tc.handlers)
 			}()
 
 			// Wait for the subscriber to conclude, or for us to timeout
@@ -171,10 +186,10 @@ func TestStart(t *testing.T) {
 
 			// Verify all our handlers have received the calls we expected them to
 			for _, handler := range tc.handlers {
-				fakeHandler, ok := handler.(*FakeHandler)
+				h, ok := handler.(*fakeHandler)
 				require.True(t, ok)
 
-				fakeHandler.AssertExpectations(t)
+				h.AssertExpectations(t)
 			}
 		})
 	}
