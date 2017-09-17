@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/beevik/etree"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 )
 
@@ -70,7 +71,8 @@ func (s crm) watch(ctx context.Context) chan *CrmNode {
 			select {
 			case <-ticker.C:
 				if err := s.updateNodes(watchChan); err != nil {
-					return
+					logrus.Error(err.Error())
+					// return
 				}
 			case <-ctx.Done():
 				return

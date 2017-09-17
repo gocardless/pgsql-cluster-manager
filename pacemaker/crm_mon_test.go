@@ -25,20 +25,20 @@ func TestGet(t *testing.T) {
 		err     error
 	}{
 		{
-			"with three nodes when curly is master",
-			"./fixtures/crm_mon_curly_master_three_node.xml",
-			"curly",
+			"with three nodes when pg02 is master",
+			"./fixtures/crm_mon_three_node_pg02_master.xml",
+			"pg02",
 			nil,
 		},
 		{
-			"with two nodes when curly is master",
-			"./fixtures/crm_mon_curly_master_two_node.xml",
-			"curly",
+			"with two nodes when pg03 is master",
+			"./fixtures/crm_mon_two_node_pg03_master.xml",
+			"pg03",
 			nil,
 		},
 		{
 			"when we don't have quorum",
-			"./fixtures/crm_mon_curly_master_three_node_no_quorum.xml",
+			"./fixtures/crm_mon_three_node_no_quorum.xml",
 			"",
 			errors.New("Cannot find designated controller with quorum"),
 		},
@@ -54,7 +54,7 @@ func TestGet(t *testing.T) {
 
 			executor.On("CombinedOutput", "crm_mon", []string{"--as-xml"}).Return(fixture, nil)
 
-			nodes, err := crmMon.Get("crm_mon/resources/resource[@id='PostgresqlVIP']/node[@name]")
+			nodes, err := crmMon.Get("crm_mon/resources/clone[@id='msPostgresql']/resource[@role='Master']/node[@name]")
 
 			executor.AssertExpectations(t)
 

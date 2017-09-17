@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<crm_mon version="1.1.10">
+    <summary>
+        <last_update time="Sun Sep 17 13:24:48 2017" />
+        <last_change time="Sun Sep 17 13:24:42 2017" user="" client="crm_attribute" origin="pg02" />
+        <stack type="corosync" />
+        <current_dc present="true" version="1.1.10-42f2063" name="pg01" id="1" with_quorum="true" />
+        <nodes_configured number="3" expected_votes="unknown" />
+        <resources_configured number="3" />
+    </summary>
+    <nodes>
+        <node name="pg01" id="1" online="true" standby="false" standby_onfail="false" maintenance="false" pending="false" unclean="false" shutdown="false" expected_up="true" is_dc="true" resources_running="1" type="member" />
+        <node name="pg02" id="2" online="true" standby="false" standby_onfail="false" maintenance="false" pending="false" unclean="false" shutdown="false" expected_up="true" is_dc="false" resources_running="1" type="member" />
+        <node name="pg03" id="3" online="true" standby="false" standby_onfail="false" maintenance="false" pending="false" unclean="false" shutdown="false" expected_up="true" is_dc="false" resources_running="1" type="member" />
+    </nodes>
+    <resources>
+        <clone id="msPostgresql" multi_state="true" unique="false" managed="true" failed="false" failure_ignored="false" >
+            <resource id="Postgresql" resource_agent="ocf::heartbeat:pgsql" role="Started" active="true" orphaned="false" managed="true" failed="false" failure_ignored="false" nodes_running_on="1" >
+                <node name="pg03" id="3" cached="false"/>
+            </resource>
+            <resource id="Postgresql" resource_agent="ocf::heartbeat:pgsql" role="Started" active="true" orphaned="false" managed="true" failed="false" failure_ignored="false" nodes_running_on="1" >
+                <node name="pg01" id="1" cached="false"/>
+            </resource>
+            <resource id="Postgresql" resource_agent="ocf::heartbeat:pgsql" role="Master" active="true" orphaned="false" managed="true" failed="false" failure_ignored="false" nodes_running_on="1" >
+                <node name="pg02" id="2" cached="false"/>
+            </resource>
+        </clone>
+    </resources>
+</crm_mon>

@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<crm_mon version="1.1.10">
+    <summary>
+        <last_update time="Sun Sep 17 13:38:52 2017" />
+        <last_change time="Sun Sep 17 13:38:04 2017" user="" client="crm_attribute" origin="pg03" />
+        <stack type="corosync" />
+        <current_dc present="true" version="1.1.10-42f2063" name="pg01" id="1" with_quorum="false" />
+        <nodes_configured number="3" expected_votes="unknown" />
+        <resources_configured number="3" />
+    </summary>
+    <nodes>
+        <node name="pg01" id="1" online="true" standby="false" standby_onfail="false" maintenance="false" pending="false" unclean="false" shutdown="false" expected_up="true" is_dc="true" resources_running="0" type="member" />
+        <node name="pg02" id="2" online="false" standby="false" standby_onfail="false" maintenance="false" pending="false" unclean="false" shutdown="false" expected_up="true" is_dc="false" resources_running="0" type="member" />
+        <node name="pg03" id="3" online="false" standby="false" standby_onfail="false" maintenance="false" pending="false" unclean="false" shutdown="false" expected_up="true" is_dc="false" resources_running="0" type="member" />
+    </nodes>
+    <resources>
+    </resources>
+</crm_mon>

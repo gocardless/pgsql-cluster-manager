@@ -162,19 +162,7 @@ func App(logger *logrus.Logger) *cli.App {
 						Name:   "postgres-master-crm-xpath",
 						EnvVar: "POSTGRES_MASTER_CRM_XPATH",
 						Usage:  "XPath query into crm_mon's XML output for the Postgres master",
-						Value:  "crm_mon/resources/resource[@id='PostgresqlVIP']/node[@name]",
-					},
-					cli.StringFlag{
-						Name:   "pgbouncer-master-etcd-key",
-						EnvVar: "PGBOUNCER_MASTER_ETCD_KEY",
-						Usage:  "(namespaces) etcd key that specifies the PGBouncer primary",
-						Value:  "/pgbouncer",
-					},
-					cli.StringFlag{
-						Name:   "pgbouncer-master-crm-xpath",
-						EnvVar: "PGBOUNCER_MASTER_CRM_XPATH",
-						Usage:  "XPath query into crm_mon's XML output for the PGBouncer primary",
-						Value:  "crm_mon/resources/resource[@id='PgBouncerVIP']/node[@name]",
+						Value:  "crm_mon/resources/clone[@id='msPostgresql']/resource[@role='Master']/node[@name]",
 					},
 				}...,
 			),
@@ -200,11 +188,6 @@ func App(logger *logrus.Logger) *cli.App {
 							XPath:     c.String("postgres-master-crm-xpath"),
 							Attribute: "name",
 						},
-						&subscriber.CrmNode{
-							Alias:     c.String("pgbouncer-master-etcd-key"),
-							XPath:     c.String("pgbouncer-master-crm-xpath"),
-							Attribute: "name",
-						},
 					},
 				)
 
@@ -212,8 +195,7 @@ func App(logger *logrus.Logger) *cli.App {
 
 				go subscriber.Log(logger, sub).Start(
 					ctx, map[string]subscriber.Handler{
-						c.String("postgres-master-etcd-key"):  &etcdUpdater,
-						c.String("pgbouncer-master-etcd-key"): &etcdUpdater,
+						c.String("postgres-master-etcd-key"): &etcdUpdater,
 					},
 				)
 
