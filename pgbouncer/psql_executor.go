@@ -2,11 +2,11 @@ package pgbouncer
 
 import (
 	"database/sql"
-	"errors"
 	"fmt"
 	"time"
 
 	_ "github.com/lib/pq"
+	"github.com/pkg/errors"
 )
 
 // PsqlExecutor implements the execution of SQL queries against a Postgres connection
@@ -59,13 +59,10 @@ func (e pgbouncerExecutor) connectionString() (string, error) {
 	port := config["listen_port"]
 
 	if socketDir == nullString || port == nullString {
-		return nullString, errorWithFields{
-			errors.New("Failed to parse required config from PGBouncer config template"),
-			map[string]interface{}{
-				"socketDir": socketDir,
-				"port":      port,
-			},
-		}
+		return nullString, errors.Errorf(
+			"failed to parse config for PGBouncer: socketDir=%s, port=%s",
+			socketDir, port,
+		)
 	}
 
 	return fmt.Sprintf(

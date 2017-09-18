@@ -11,10 +11,9 @@ import (
 
 	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/clientv3/namespace"
+	"github.com/gocardless/pgsql-cluster-manager/etcd"
 	"github.com/gocardless/pgsql-cluster-manager/pacemaker"
 	"github.com/gocardless/pgsql-cluster-manager/pgbouncer"
-	"github.com/gocardless/pgsql-cluster-manager/subscriber"
-	"github.com/gocardless/pgsql-cluster-manager/sync"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 	"golang.org/x/crypto/ssh/terminal"
@@ -40,6 +39,10 @@ func main() {
 	}
 
 	App(logger).Run(os.Args)
+}
+
+type handler interface {
+	Run(string, string) error
 }
 
 // App generates a command-line application that is the entrypoint for pgsql-cluster-manager
@@ -124,17 +127,17 @@ func App(logger *logrus.Logger) *cli.App {
 					return cli.NewExitError(err, 1)
 				}
 
-				etcd, err := createEtcdConnection(c)
+				etcdClient, err := createEtcdConnection(c)
 
 				if err != nil {
 					return cli.NewExitError(err.Error(), 1)
 				}
 
 				ctx, cancel := context.WithCancel(context.Background())
-				sub := subscriber.NewEtcd(etcd)
+				sub := etcd.NewSubscriber(etcdClient, etcd.WithLogger(logger))
 
-				go subscriber.Log(logger, sub).Start(
-					ctx, map[string]subscriber.Handler{
+				go sub.Start(
+					ctx, map[string]etcd.Handler{
 						// Listen for changes to pgbouncer-host-key, and reload pgbouncer
 						c.String("pgbouncer-host-key"): &pgbouncer.HostChanger{
 							createPGBouncer(c),
@@ -171,30 +174,26 @@ func App(logger *logrus.Logger) *cli.App {
 					return cli.NewExitError(err, 1)
 				}
 
-				etcd, err := createEtcdConnection(c)
+				etcdClient, err := createEtcdConnection(c)
 
 				if err != nil {
 					return cli.NewExitError(err.Error(), 1)
 				}
 
-				ctx, cancel := context.WithCancel(context.Background())
-
-				sub := subscriber.NewCrm(
-					pacemaker.NewCrmMon(time.Second),
-					func() *time.Ticker { return time.NewTicker(500 * time.Millisecond) },
-					[]*subscriber.CrmNode{
-						&subscriber.CrmNode{
-							Alias:     c.String("postgres-master-etcd-key"),
-							XPath:     c.String("postgres-master-crm-xpath"),
-							Attribute: "name",
-						},
-					},
+				crmSub := pacemaker.NewSubscriber(
+					// Watch for changes to master node, calling the handler on the master etcd key
+					pacemaker.WatchNode(
+						c.String("postgres-master-etcd-key"),
+						c.String("postgres-master-crm-xpath"),
+						"name",
+					),
 				)
 
-				etcdUpdater := sync.EtcdUpdater{etcd}
+				ctx, cancel := context.WithCancel(context.Background())
+				etcdUpdater := etcd.Updater{etcdClient}
 
-				go subscriber.Log(logger, sub).Start(
-					ctx, map[string]subscriber.Handler{
+				go subscriber.Log(logger, crmSub).Start(
+					ctx, map[string]handler{
 						c.String("postgres-master-etcd-key"): &etcdUpdater,
 					},
 				)

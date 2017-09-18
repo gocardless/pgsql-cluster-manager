@@ -2,13 +2,41 @@ package pgbouncer
 
 import (
 	"database/sql"
-	"errors"
 	"io/ioutil"
 	"os"
 	"testing"
 
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
+
+type fakeFieldError struct{ mock.Mock }
+
+func (e fakeFieldError) Error() string {
+	args := e.Called()
+	return args.String(0)
+}
+
+func (e fakeFieldError) Field(f byte) string {
+	args := e.Called(f)
+	return args.String(0)
+}
+
+type fakePsqlExecutor struct{ mock.Mock }
+
+func (e fakePsqlExecutor) Query(query string, params ...interface{}) (*sql.Rows, error) {
+	args := e.Called(query, params)
+	return args.Get(0).(*sql.Rows), args.Error(1)
+}
+
+func makeTempFile(t *testing.T, prefix string) *os.File {
+	tempFile, err := ioutil.TempFile("", prefix)
+	require.Nil(t, err, "failed to create temporary file")
+
+	return tempFile
+}
 
 func TestGenerateConfig(t *testing.T) {
 	t.Run("errors with invalid config template", func(t *testing.T) {
@@ -18,13 +46,12 @@ func TestGenerateConfig(t *testing.T) {
 		}
 
 		err := bouncer.GenerateConfig("curly.db.ams.gc.cx")
-		assert.IsType(t, errorWithFields{}, err, "expected error to be errorWithFields")
-
-		ferr, _ := err.(errorWithFields)
 
 		assert.Error(t, err, "expected config generation to fail")
-		assert.Equal(t, "Failed to read PGBouncer config template file", err.Error())
-		assert.Equal(t, "/this/does/not/exist", ferr.Fields()["path"])
+		assert.Equal(t,
+			"failed to read PGBouncer config template file: open /this/does/not/exist: no such file or directory",
+			err.Error(),
+		)
 	})
 
 	t.Run("writes config with host when successful", func(t *testing.T) {
@@ -45,13 +72,6 @@ func TestGenerateConfig(t *testing.T) {
 	})
 }
 
-func makeTempFile(t *testing.T, prefix string) *os.File {
-	tempFile, err := ioutil.TempFile("", prefix)
-	assert.Nil(t, err, "failed to create temporary file")
-
-	return tempFile
-}
-
 func TestPause(t *testing.T) {
 	testCases := []struct {
 		name        string
@@ -69,11 +89,7 @@ func TestPause(t *testing.T) {
 			"when pause fails",
 			errors.New("timeout"),
 			func(t *testing.T, err error) {
-				assert.IsType(t, errorWithFields{}, err, "expected error to be errorWithFields")
-				ferr, _ := err.(errorWithFields)
-
-				assert.Equal(t, "Failed to pause PGBouncer", ferr.Error())
-				assert.Equal(t, "timeout", ferr.Fields()["error"])
+				assert.Equal(t, "failed to pause PGBouncer: timeout", err.Error())
 			},
 		},
 		// If PGBouncer is already paused then we'll receive a specific error code. Verify that
@@ -81,7 +97,7 @@ func TestPause(t *testing.T) {
 		{
 			"when already paused",
 			func() error {
-				fieldError := new(FakeFieldError)
+				fieldError := new(fakeFieldError)
 				fieldError.On("Field", byte('C')).Return("08P01")
 
 				return fieldError
@@ -95,7 +111,7 @@ func TestPause(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			var noParams []interface{}
-			psql := new(FakePsqlExecutor)
+			psql := new(fakePsqlExecutor)
 			bouncer := pgBouncer{PsqlExecutor: psql}
 
 			psql.On("Query", "PAUSE;", noParams).Return(&sql.Rows{}, tc.psqlError)
@@ -124,11 +140,7 @@ func TestReload(t *testing.T) {
 			"when reload is successful",
 			errors.New("timeout"),
 			func(t *testing.T, err error) {
-				assert.IsType(t, errorWithFields{}, err, "expected error to be errorWithFields")
-				ferr, _ := err.(errorWithFields)
-
-				assert.Equal(t, "Failed to reload PGBouncer", ferr.Error())
-				assert.Equal(t, "timeout", ferr.Fields()["error"])
+				assert.Equal(t, "failed to reload PGBouncer: timeout", err.Error())
 			},
 		},
 	}
@@ -136,7 +148,7 @@ func TestReload(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			var noParams []interface{}
-			psql := new(FakePsqlExecutor)
+			psql := new(fakePsqlExecutor)
 			bouncer := pgBouncer{PsqlExecutor: psql}
 
 			psql.On("Query", "RELOAD;", noParams).Return(&sql.Rows{}, tc.psqlError)

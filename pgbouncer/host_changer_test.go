@@ -8,7 +8,7 @@ import (
 	"github.com/gocardless/pgsql-cluster-manager/etcd"
 	"github.com/gocardless/pgsql-cluster-manager/pgbouncer"
 	"github.com/gocardless/pgsql-cluster-manager/testHelpers"
-	"github.com/stretchr/testify/assert"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
 
@@ -22,6 +22,10 @@ func TestHostChanger(t *testing.T) {
 
 	etcdClient := testHelpers.StartEtcd(t, ctx)
 	bouncer := testHelpers.StartPGBouncer(t, ctx)
+
+	// Use a debug logger for the etcd subscriber
+	logger := logrus.StandardLogger()
+	logger.Level = logrus.DebugLevel
 
 	showDatabase := func(name string) *pgbouncer.Database {
 		databases, err := bouncer.ShowDatabases()
@@ -38,24 +42,8 @@ func TestHostChanger(t *testing.T) {
 		return nil
 	}
 
-	waitForHostToBecome := func(db *pgbouncer.Database, host string) *pgbouncer.Database {
-		timeout := time.After(5 * time.Second)
-		retry := time.Tick(100 * time.Millisecond)
-
-		for {
-			select {
-			case <-retry:
-				if latestDb := showDatabase(db.Name); latestDb.Host == host {
-					return latestDb
-				}
-			case <-timeout:
-				require.FailNow(t, "timed out waiting for PGBouncer host to change")
-			}
-		}
-	}
-
 	t.Run("changes PGBouncer database host in response to etcd key changes", func(t *testing.T) {
-		go etcd.NewSubscriber(etcdClient).Start(
+		go etcd.NewSubscriber(etcdClient, etcd.WithLogger(logger)).Start(
 			ctx, map[string]etcd.Handler{
 				"/master": pgbouncer.HostChanger{bouncer},
 			},
@@ -64,11 +52,25 @@ func TestHostChanger(t *testing.T) {
 		database := showDatabase("postgres")
 		require.Equal(t, database.Host, "{{.Host}}", "expected initial host to be from template")
 
-		_, err := etcdClient.Put(ctx, "/master", "pg01")
-		require.Nil(t, err)
+		timeout := time.After(3 * time.Second)
 
-		databaseAfterChange := waitForHostToBecome(database, "pg01")
+		// We have to retry putting the value to etcd a few times, as we don't know if the
+		// subscriber will be listening when we first attempt a put. Retry the put until
+		// either the host changes, or we timeout.
+		for {
+			select {
+			case <-timeout:
+				require.FailNow(t, "timed out waiting for PGBouncer host to change")
+			default:
+				// Attempt to put a new value to etcd
+				_, err := etcdClient.Put(ctx, "/master", "pg01")
+				require.Nil(t, err)
 
-		assert.Equal(t, "pg01", databaseAfterChange.Host, "expected host to match etcd key")
+				// Check to see if database has been updated to our desired target
+				if latestDb := showDatabase(database.Name); latestDb.Host == "pg01" {
+					return
+				}
+			}
+		}
 	})
 }

@@ -4,12 +4,13 @@ import (
 	"bufio"
 	"bytes"
 	"database/sql"
-	"errors"
 	"html/template"
 	"io/ioutil"
 	"os"
 	"regexp"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 // PGBouncer provides an interface to interact with a local PGBouncer service
@@ -28,15 +29,6 @@ type pgBouncer struct {
 	ConfigFile         string
 	ConfigFileTemplate string // template that can be rendered with Host value
 	PsqlExecutor
-}
-
-type errorWithFields struct {
-	error
-	fields map[string]interface{}
-}
-
-func (e errorWithFields) Fields() map[string]interface{} {
-	return e.fields
 }
 
 // NewPGBouncer returns a PGBouncer configured around the given configFile and template
@@ -58,13 +50,7 @@ func (b pgBouncer) Config() (map[string]string, error) {
 	configFile, err := os.Open(b.ConfigFileTemplate)
 
 	if err != nil {
-		return nil, errorWithFields{
-			errors.New("Failed to read PGBouncer config template file"),
-			map[string]interface{}{
-				"path":  b.ConfigFileTemplate,
-				"error": err,
-			},
-		}
+		return nil, errors.Wrap(err, "failed to read PGBouncer config template file")
 	}
 
 	defer configFile.Close()
@@ -94,7 +80,7 @@ func (b pgBouncer) GenerateConfig(host string) error {
 	err = template.Execute(&configBuffer, struct{ Host string }{host})
 
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to render PGBouncer config")
 	}
 
 	return ioutil.WriteFile(b.ConfigFile, configBuffer.Bytes(), 0644)
@@ -104,23 +90,14 @@ func (b pgBouncer) createTemplate() (*template.Template, error) {
 	configTemplate, err := ioutil.ReadFile(b.ConfigFileTemplate)
 
 	if err != nil {
-		return nil, errorWithFields{
-			errors.New("Failed to read PGBouncer config template file"),
-			map[string]interface{}{
-				"path":  b.ConfigFileTemplate,
-				"error": err,
-			},
-		}
+		return nil, errors.Wrap(err, "failed to read PGBouncer config template file")
 	}
 
 	if matched, _ := regexp.Match("ignore_startup_parameters\\s*\\=.+extra_float_digits", configTemplate); !matched {
-		return nil, errorWithFields{
-			errors.New("PGBouncer is misconfigured"),
-			map[string]interface{}{
-				"path":     b.ConfigFileTemplate,
-				"expected": "'ignore_startup_paramets' to include 'extra_float_digits'",
-			},
-		}
+		return nil, errors.Errorf(
+			"PGBouncer is misconfigured: expected config file '%s' to define " +
+				"'ignore_startup_paramets' to include 'extra_float_digits'",
+		)
 	}
 
 	return template.Must(template.New("PGBouncerConfig").Parse(string(configTemplate))), err
@@ -202,12 +179,7 @@ func (b pgBouncer) Pause() error {
 			}
 		}
 
-		return errorWithFields{
-			errors.New("Failed to pause PGBouncer"),
-			map[string]interface{}{
-				"error": err.Error(),
-			},
-		}
+		return errors.Wrap(err, "failed to pause PGBouncer")
 	}
 
 	return nil
@@ -216,12 +188,7 @@ func (b pgBouncer) Pause() error {
 // Reload will cause PGBouncer to reload configuration and live apply setting changes
 func (b pgBouncer) Reload() error {
 	if _, err := b.PsqlExecutor.Query(`RELOAD;`); err != nil {
-		return errorWithFields{
-			errors.New("Failed to reload PGBouncer"),
-			map[string]interface{}{
-				"error": err.Error(),
-			},
-		}
+		return errors.Wrap(err, "failed to reload PGBouncer")
 	}
 
 	return nil
