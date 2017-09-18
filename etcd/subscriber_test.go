@@ -44,11 +44,11 @@ func TestSubscriber(t *testing.T) {
 	put("/a", "initial")
 
 	go func() {
-		sub := NewSubscriber(etcd)
-		sub.Start(ctx, map[string]Handler{
-			"/a": h,
-			"/b": h,
-		})
+		sub := NewSubscriber(etcd).
+			AddHandler("/a", h).
+			AddHandler("/b", h)
+
+		sub.Start(ctx)
 	}()
 
 	// Wait for the subscriber to establish a connection

@@ -10,13 +10,12 @@ import (
 )
 
 type subscriber struct {
-	client *clientv3.Client
-	logger *logrus.Logger
+	client   *clientv3.Client
+	logger   *logrus.Logger
+	handlers map[string]handler
 }
 
-// Handler exports the interface we expect subscriber handlers to implement. This is only
-// exported because we have to create a map outside of the package.
-type Handler interface {
+type handler interface {
 	Run(string, string) error
 }
 
@@ -33,8 +32,9 @@ func NewSubscriber(client *clientv3.Client, options ...func(*subscriber)) *subsc
 	nullLogger.Out = ioutil.Discard // for ease of use, default to using a null logger
 
 	s := &subscriber{
-		client: client,
-		logger: nullLogger,
+		client:   client,
+		logger:   nullLogger,
+		handlers: map[string]handler{},
 	}
 
 	for _, option := range options {
@@ -44,16 +44,32 @@ func NewSubscriber(client *clientv3.Client, options ...func(*subscriber)) *subsc
 	return s
 }
 
+// AddHandler registers a new handler to be run on changes to the given key
+func (s *subscriber) AddHandler(key string, h handler) *subscriber {
+	s.logger.WithFields(map[string]interface{}{
+		"key": key, "handler": reflect.TypeOf(h).String(),
+	}).Info("Registering handler")
+
+	s.handlers[key] = h
+	return s
+}
+
 // Start creates a new etcd watcher, and will trigger handlers that match the given key
 // when values change.
-func (s subscriber) Start(ctx context.Context, handlers map[string]Handler) error {
-	// Make sure we trigger handlers for initial key values
-	for key, handler := range handlers {
+func (s *subscriber) Start(ctx context.Context) {
+	s.bootHandlers(ctx)
+	s.watch(ctx)
+}
+
+// bootHandlers goes through each of handlers and runs them for the values in etcd. This
+// is used to make sure calling Start will run handlers with the current state, even
+// without observing a change in etcd.
+func (s *subscriber) bootHandlers(ctx context.Context) {
+	for key, handler := range s.handlers {
 		getResp, err := s.client.Get(ctx, key)
 
 		if err != nil {
 			s.logger.WithField("key", key).WithError(err).Errorf("etcd get failed")
-			return err
 		}
 
 		if len(getResp.Kvs) == 1 {
@@ -67,37 +83,40 @@ func (s subscriber) Start(ctx context.Context, handlers map[string]Handler) erro
 			handler.Run(key, string(getResp.Kvs[0].Value))
 		}
 	}
+}
 
+func (s subscriber) watch(ctx context.Context) {
 	s.logger.Info("Starting etcd watcher")
 	watcher := s.client.Watch(ctx, "/", clientv3.WithPrefix())
 
 	for watcherResponse := range watcher {
 		for _, event := range watcherResponse.Events {
-			s.processEvent(handlers, event)
+			s.processEvent(event)
 		}
 	}
 
-	s.logger.Info("Finished etcd subscriber, watch channel closed")
-	return nil
+	s.logger.Info("Finished etcd watcher, channel closed")
 }
 
-func (s subscriber) processEvent(handlers map[string]Handler, event *clientv3.Event) {
+func (s *subscriber) processEvent(event *clientv3.Event) {
 	key := string(event.Kv.Key)
 	value := string(event.Kv.Value)
-	handler := handlers[key]
+	handler := s.handlers[key]
 
 	contextLogger := s.logger.WithFields(map[string]interface{}{
 		"key": key, "value": value,
 	})
 
 	contextLogger.Debug("Observed etcd value change")
-
 	if handler == nil {
 		contextLogger.Debug("No handler")
+		return
 	}
 
 	contextLogger = contextLogger.WithField("handler", reflect.TypeOf(handler).String())
 	contextLogger.Info("Running handler")
 
-	handler.Run(key, value)
+	if err := handler.Run(key, value); err != nil {
+		contextLogger.WithError(err).Error("failed to run handler")
+	}
 }

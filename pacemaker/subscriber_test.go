@@ -7,6 +7,7 @@ import (
 
 	"golang.org/x/net/context"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/beevik/etree"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -159,13 +160,20 @@ func TestStart(t *testing.T) {
 
 			// Start the subscriber, which is controlled by our fake ticker
 			go func() {
+				// Use a debug logger to see where things go wrong
+				logger := logrus.StandardLogger()
+				logger.Level = logrus.DebugLevel
+
 				s := subscriber{
 					crmStore:  crmMon,
+					logger:    logger,
 					nodes:     tc.nodes,
+					handlers:  tc.handlers,
 					newTicker: func() *time.Ticker { return ticker },
 				}
 
-				done <- s.Start(ctx, tc.handlers)
+				s.Start(ctx)
+				done <- nil
 			}()
 
 			// Wait for the subscriber to conclude, or for us to timeout

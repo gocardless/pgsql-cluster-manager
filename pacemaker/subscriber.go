@@ -1,14 +1,19 @@
 package pacemaker
 
 import (
+	"io/ioutil"
+	"reflect"
 	"time"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/beevik/etree"
 	"golang.org/x/net/context"
 )
 
 type subscriber struct {
 	crmStore
+	logger       *logrus.Logger
+	handlers     map[string]handler
 	nodes        []*crmNode
 	newTicker    func() *time.Ticker
 	errorHandler func(error)
@@ -57,10 +62,24 @@ func CrmErrorHandler(errorHandler func(error)) func(*subscriber) {
 	}
 }
 
+// WithLogger registers a logger that subscriber will use for output
+func WithLogger(logger *logrus.Logger) func(*subscriber) {
+	return func(s *subscriber) {
+		s.logger = logger
+	}
+}
+
+// NewSubscriber constructs a default subscriber configured to watch specific XML nodes
+// inside the crm_mon state.
 func NewSubscriber(options ...func(*subscriber)) *subscriber {
+	nullLogger := logrus.New()
+	nullLogger.Out = ioutil.Discard
+
 	s := &subscriber{
 		crmStore: NewCrmMon(250 * time.Millisecond), // required to be less than the ticker
+		logger:   nullLogger,                        // for ease of use, default to using a null logger
 		nodes:    []*crmNode{},                      // start with an empty node list
+		handlers: map[string]handler{},              // use AddHandler to add handlers
 		newTicker: func() *time.Ticker {
 			return time.NewTicker(500 * time.Millisecond) // 500ms provides frequent updates
 		},
@@ -73,20 +92,46 @@ func NewSubscriber(options ...func(*subscriber)) *subscriber {
 	return s
 }
 
+// AddHandler registers a new handler to be run on changes to nodes with the given alias
+func (s *subscriber) AddHandler(alias string, h handler) *subscriber {
+	s.logger.WithFields(map[string]interface{}{
+		"alias": alias, "handler": reflect.TypeOf(h).String(),
+	}).Info("Registering handler")
+
+	s.handlers[alias] = h
+	return s
+}
+
 // Start will begin listening for changes to the configured node list. Whenever any
 // changes are detected to a crmNode element attribute, the appropriate handler will be
 // selected using the crmNode 'Alias' and called with the value of the element attribute.
-func (s subscriber) Start(ctx context.Context, handlers map[string]handler) error {
+func (s *subscriber) Start(ctx context.Context) {
+	s.logger.Info("Starting pacemaker subscriber")
+
 	for updatedNode := range s.watch(ctx) {
-		if handler := handlers[updatedNode.Alias]; handler != nil {
-			handler.Run(updatedNode.Alias, updatedNode.value)
-		}
+		s.processUpdatedNode(updatedNode)
 	}
 
-	return nil
+	s.logger.Info("Finishing pacemaker handler, watcher closed")
 }
 
-func (s subscriber) watch(ctx context.Context) chan *crmNode {
+func (s *subscriber) processUpdatedNode(node *crmNode) {
+	handler := s.handlers[node.Alias]
+
+	contextLogger := s.logger.WithFields(map[string]interface{}{
+		"alias": node.Alias, "attribute": node.Attribute,
+		"xpath": node.XPath, "value": node.value,
+		"handler": reflect.TypeOf(handler).String(),
+	})
+
+	contextLogger.Info("Observed node change, running handler")
+
+	if err := handler.Run(node.Alias, node.value); err != nil {
+		contextLogger.WithError(err).Error("Failed to run handler")
+	}
+}
+
+func (s *subscriber) watch(ctx context.Context) chan *crmNode {
 	ticker := s.newTicker()
 	watchChan := make(chan *crmNode)
 
@@ -113,7 +158,7 @@ func (s subscriber) watch(ctx context.Context) chan *crmNode {
 
 // updateNodes queries crm to find current node values, updates the value on each node and
 // sends nodes that have been updated down the given channel.
-func (s subscriber) updateNodes(updated chan *crmNode) error {
+func (s *subscriber) updateNodes(updated chan *crmNode) error {
 	elements, err := s.crmStore.Get(s.xpaths()...)
 
 	if err != nil {
@@ -136,7 +181,7 @@ func (s subscriber) updateNodes(updated chan *crmNode) error {
 	return nil
 }
 
-func (s subscriber) xpaths() []string {
+func (s *subscriber) xpaths() []string {
 	xpaths := make([]string, len(s.nodes))
 
 	for idx, node := range s.nodes {
