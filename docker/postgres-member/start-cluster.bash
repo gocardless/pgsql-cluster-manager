@@ -5,10 +5,6 @@
 
 set -eu
 
-# PG01="172.17.0.2"
-# PG02="172.17.0.3"
-# PG03="172.17.0.4"
-
 PG01="$1"
 PG02="$2"
 PG03="$3"
@@ -37,11 +33,15 @@ export PGBOUNCER_CONFIG=/etc/pgbouncer/pgbouncer.ini
 export PGBOUNCER_CONFIG_TEMPLATE=/etc/pgbouncer/pgbouncer.ini.template
 export PGBOUNCER_HOST_KEY=/postgres/master
 
-/usr/local/bin/pgsql-cluster-manager cluster >>/var/log/pgsql-cluster-manager.log 2>&1
+mkdir /var/log/pgsql
+
+# Boot cluster to listen for migration commands, proxy to manage pgbouncer
+/usr/local/bin/pgsql-cluster-manager cluster >>/var/log/pgsql/manager.log 2>&1 &
+sudo -u postgres /usr/local/bin/pgsql-cluster-manager proxy >>/var/log/pgsql/proxy.log 2>&1 &
 EOF
 
   chmod a+x /usr/local/bin/pgsql-cluster-manager.sh
-  /usr/local/bin/pgsql-cluster-manager.sh &
+  /usr/local/bin/pgsql-cluster-manager.sh
 }
 
 function generate_corosync_conf() {
@@ -121,6 +121,7 @@ function start_services() {
   echo "Starting corosync/pacemaker"
   corosync # this starts corosync in the background
   service pacemaker start
+  service pgbouncer start
 }
 
 function configure_corosync() {

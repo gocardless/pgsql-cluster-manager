@@ -5,18 +5,17 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/beevik/etree"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 )
 
 type subscriber struct {
 	crmStore
-	logger       *logrus.Logger
-	handlers     map[string]handler
-	nodes        []*crmNode
-	newTicker    func() *time.Ticker
-	errorHandler func(error)
+	logger    *logrus.Logger
+	handlers  map[string]handler
+	nodes     []*crmNode
+	newTicker func() *time.Ticker
 }
 
 // crmNode represents an element in the output XML of crm_mon, selected using the given
@@ -51,14 +50,6 @@ func WatchNode(alias, xpath, attribute string) func(*subscriber) {
 		s.nodes = append(s.nodes, &crmNode{
 			alias, xpath, attribute, "",
 		})
-	}
-}
-
-// CrmErrorHandler creates an option for subscribers which will configure a handler for
-// crm errors. Whenever a crm operation returns an error, this handler will be called.
-func CrmErrorHandler(errorHandler func(error)) func(*subscriber) {
-	return func(s *subscriber) {
-		s.errorHandler = errorHandler
 	}
 }
 
@@ -142,10 +133,10 @@ func (s *subscriber) watch(ctx context.Context) chan *crmNode {
 		for {
 			select {
 			case <-ticker.C:
+				s.logger.Debug("Polling crm_mon...")
+
 				if err := s.updateNodes(watchChan); err != nil {
-					if s.errorHandler != nil {
-						s.errorHandler(err)
-					}
+					s.logger.WithError(err).Error("Failed to update nodes")
 				}
 			case <-ctx.Done():
 				return

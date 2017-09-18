@@ -50,7 +50,7 @@ func TestHostChanger(t *testing.T) {
 		database := showDatabase("postgres")
 		require.Equal(t, database.Host, "{{.Host}}", "expected initial host to be from template")
 
-		timeout := time.After(3 * time.Second)
+		timeout := time.After(2 * time.Second)
 
 		// We have to retry putting the value to etcd a few times, as we don't know if the
 		// subscriber will be listening when we first attempt a put. Retry the put until

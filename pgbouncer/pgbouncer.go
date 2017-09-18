@@ -95,8 +95,9 @@ func (b pgBouncer) createTemplate() (*template.Template, error) {
 
 	if matched, _ := regexp.Match("ignore_startup_parameters\\s*\\=.+extra_float_digits", configTemplate); !matched {
 		return nil, errors.Errorf(
-			"PGBouncer is misconfigured: expected config file '%s' to define " +
+			"PGBouncer is misconfigured: expected config file '%s' to define "+
 				"'ignore_startup_paramets' to include 'extra_float_digits'",
+			b.ConfigFileTemplate,
 		)
 	}
 

@@ -1,7 +1,7 @@
 VERSION=0.0.1
 PROG=pgsql-cluster-manager
 PREFIX=/usr/local
-BUILD_COMMAND=go build -ldflags "-X main.version=$(VERSION)"
+BUILD_COMMAND=go build -ldflags "-X github.com/gocardless/pgsql-cluster-manager/cmd.Version=$(VERSION)"
 PACKAGES=$(shell go list ./... | grep -v /vendor/)
 
 .PHONY: build test clean circleci-dockerfile publish-circleci-dockerfile $(PROG).linux_amd64
