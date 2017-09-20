@@ -1,4 +1,4 @@
-package cmd
+package command
 
 import (
 	"os"
@@ -20,10 +20,10 @@ var (
 	// Go's native ISO3339 format doesn't play nice with the rest of the world
 	iso3339Timestamp = "2006-01-02T15:04:05-0700"
 
-	PgsqlCmd = &cobra.Command{
+	PgsqlCommand = &cobra.Command{
 		Use: "pgsql-cluster-manager",
-		Run: func(ccmd *cobra.Command, args []string) {
-			ccmd.HelpFunc()(ccmd, args)
+		Run: func(cmd *cobra.Command, args []string) {
+			cmd.HelpFunc()(cmd, args)
 		},
 	}
 )
@@ -42,7 +42,7 @@ func init() {
 		}
 	}
 
-	flags := PgsqlCmd.PersistentFlags()
+	flags := PgsqlCommand.PersistentFlags()
 
 	// We always need an etcd connection, so these flags are for all commands
 	flags.String("etcd-namespace", "/", "Namespace all requests to etcd under this value")
@@ -54,8 +54,8 @@ func init() {
 	viper.BindPFlag("etcd-endpoints", flags.Lookup("etcd-endpoints"))
 	viper.BindPFlag("etcd-dial-timeout", flags.Lookup("etcd-dial-timeout"))
 
-	PgsqlCmd.AddCommand(NewSuperviseCommand())
-	PgsqlCmd.AddCommand(NewVersionCommand())
+	PgsqlCommand.AddCommand(NewSuperviseCommand())
+	PgsqlCommand.AddCommand(NewVersionCommand())
 }
 
 func EtcdClientOrExit() *clientv3.Client {
