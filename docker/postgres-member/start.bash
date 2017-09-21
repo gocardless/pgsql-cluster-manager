@@ -8,7 +8,7 @@ function run-container() {
     --hostname "$1" \
     --privileged \
     --detach \
-    -v "$(git rev-parse --show-toplevel)/pgsql-cluster-manager_0.0.1_amd64.deb:/pgsql-cluster-manager.deb" \
+    --volume "$(git rev-parse --show-toplevel):/pgsql-cluster-manager" \
     postgres-member \
     sh -c "while :; do sleep 1; done")
   docker inspect "$id" | jq -r '.[0].NetworkSettings.IPAddress'
