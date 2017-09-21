@@ -29,6 +29,27 @@ var (
 )
 
 func init() {
+	flags := PgsqlCommand.PersistentFlags()
+
+	// We always need an etcd connection, so these flags are for all commands
+	flags.String("etcd-namespace", "", "Namespace all requests to etcd under this value")
+	flags.StringSlice("etcd-endpoints", []string{"http://127.0.0.1:2379"}, "gRPC etcd endpoints")
+	flags.Duration("etcd-dial-timeout", 3*time.Second, "Timeout when connecting to etcd")
+	flags.String("log-level", "info", "Log level, one of [debug,info,warning,error,fatal,panic]")
+
+	// Bind flag value into Viper configuration
+	viper.BindPFlag("etcd-namespace", flags.Lookup("etcd-namespace"))
+	viper.BindPFlag("etcd-endpoints", flags.Lookup("etcd-endpoints"))
+	viper.BindPFlag("etcd-dial-timeout", flags.Lookup("etcd-dial-timeout"))
+	viper.BindPFlag("log-level", flags.Lookup("log-level"))
+
+	PgsqlCommand.AddCommand(NewSuperviseCommand())
+	PgsqlCommand.AddCommand(NewVersionCommand())
+
+	cobra.OnInitialize(ConfigureLogger)
+}
+
+func ConfigureLogger() {
 	// We should default to JSON logging if we think we're probably capturing logs, like
 	// when we can't detect a terminal.
 	if !terminal.IsTerminal(int(os.Stderr.Fd())) {
@@ -42,20 +63,12 @@ func init() {
 		}
 	}
 
-	flags := PgsqlCommand.PersistentFlags()
+	level, err := logrus.ParseLevel(viper.GetString("log-level"))
+	if err != nil {
+		logger.WithError(err).Fatal("Invalid log level!")
+	}
 
-	// We always need an etcd connection, so these flags are for all commands
-	flags.String("etcd-namespace", "/", "Namespace all requests to etcd under this value")
-	flags.StringSlice("etcd-endpoints", []string{"http://127.0.0.1:2379"}, "gRPC etcd endpoints")
-	flags.Duration("etcd-dial-timeout", 3*time.Second, "Timeout when connecting to etcd")
-
-	// Bind flag value into Viper configuration
-	viper.BindPFlag("etcd-namespace", flags.Lookup("etcd-namespace"))
-	viper.BindPFlag("etcd-endpoints", flags.Lookup("etcd-endpoints"))
-	viper.BindPFlag("etcd-dial-timeout", flags.Lookup("etcd-dial-timeout"))
-
-	PgsqlCommand.AddCommand(NewSuperviseCommand())
-	PgsqlCommand.AddCommand(NewVersionCommand())
+	logger.Level = level
 }
 
 func EtcdClientOrExit() *clientv3.Client {
@@ -94,7 +107,7 @@ func HandleQuitSignal(message string, handler func()) func() {
 
 	go func() {
 		if s := <-sigc; s != nil {
-			logger.Info("Received %s: %s", s, message)
+			logger.Infof("Received %s: %s", s, message)
 			handler()
 		}
 	}()

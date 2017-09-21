@@ -1,85 +1,102 @@
 package etcd
 
 import (
-	"fmt"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/gocardless/pgsql-cluster-manager/testHelpers"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/context"
 )
 
-type fakeHandler struct {
-	_Run func(string, string) error
-}
+type fakeHandler struct{ mock.Mock }
 
 func (h fakeHandler) Run(key, value string) error {
-	return h._Run(key, value)
+	args := h.Called(key, value)
+	return args.Error(0)
 }
 
 func TestSubscriber(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	etcd := testHelpers.StartEtcd(t, ctx)
+	client := testHelpers.StartEtcd(t, ctx)
 
 	// Helper to put a value and bail if error
 	put := func(key, value string) {
-		_, err := etcd.Put(context.Background(), key, value)
+		_, err := client.Put(context.Background(), key, value)
 		require.Nil(t, err)
 	}
 
-	// This handler will log arguments to Run into the entries slice
-	entries := []string{}
-	h := fakeHandler{
-		_Run: func(key, value string) error {
-			entries = append(entries, fmt.Sprintf("%s=%s", key, value))
-			return nil
-		},
-	}
+	// Returns true if timed-out waiting for condition to become true
+	timeoutUnless := func(condition func() bool) bool {
+		timeout := time.After(2 * time.Second)
 
-	// Place value in /a as we want the subscriber to trigger handlers on initialization
-	put("/a", "initial")
-
-	go func() {
-		sub := NewSubscriber(etcd).
-			AddHandler("/a", h).
-			AddHandler("/b", h)
-
-		sub.Start(ctx)
-	}()
-
-	// Wait for the subscriber to establish a connection
-	<-time.After(100 * time.Millisecond)
-
-	put("/a", "after-subscribe")
-	put("/b", "initial-after-subscribe")
-
-	put("/a", "final-and-third")
-	put("/b", "final-and-second")
-
-	// Wait for either a timeout, or for the expected number of log entries to appear
-	func() {
-		timeout := time.After(time.Second)
 		for {
 			select {
 			case <-timeout:
-				return
+				return true
 			default:
-				if len(entries) == 5 {
-					return
+				if condition() {
+					return false
 				}
 			}
 		}
-	}()
+	}
 
-	assert.EqualValues(t, []string{
-		"/a=initial",
-		"/a=after-subscribe",
-		"/b=initial-after-subscribe",
-		"/a=final-and-third",
-		"/b=final-and-second",
-	}, entries)
+	// This handler will log arguments to Run into the entries slice
+	arguments := []mock.Arguments{}
+	appendArguments := func(args mock.Arguments) {
+		arguments = append(arguments, args)
+	}
+
+	handler := new(fakeHandler)
+	handler.On("Run", "/key", "initial-value").Return(nil).Once().Run(appendArguments)
+	handler.On("Run", "/key", "value-after-subscribe").Return(nil).Once().Run(appendArguments)
+	handler.On("Run", "/key", "dubious").Return(errors.New("transient error")).Times(3).Run(appendArguments)
+	handler.On("Run", "/key", "dubious").Return(nil).Run(appendArguments)
+
+	// Place initial value as we need the subscriber to trigger handlers on initialization
+	put("/key", "initial-value")
+
+	// It's useful to see the debug output when viewing the tests
+	logger := logrus.StandardLogger()
+	logger.Level = logrus.DebugLevel
+
+	sub := NewSubscriber(client, WithLogger(logger), WithRetryInterval(time.Millisecond))
+	sub.AddHandler("/key", handler)
+
+	go sub.Start(ctx)
+
+	if timeoutUnless(func() bool { return len(arguments) == 1 }) {
+		t.Error("timed out waiting for handler to run with initial value")
+		return
+	}
+
+	put("/key", "value-after-subscribe")
+
+	if timeoutUnless(func() bool { return len(arguments) == 2 }) {
+		t.Error("timed out waiting for response to first watched event")
+		return
+	}
+
+	put("/key", "dubious") // this should cause transient errors
+
+	if timeoutUnless(func() bool { return len(arguments) == 6 }) {
+		t.Error("timed out waiting for 'dubious' handler to be retried")
+		return
+	}
+
+	assert.EqualValues(t, []mock.Arguments{
+		mock.Arguments{"/key", "initial-value"},
+		mock.Arguments{"/key", "value-after-subscribe"},
+		mock.Arguments{"/key", "dubious"}, // fail
+		mock.Arguments{"/key", "dubious"}, // fail
+		mock.Arguments{"/key", "dubious"}, // fail
+		mock.Arguments{"/key", "dubious"}, // success
+	}, arguments)
 }
