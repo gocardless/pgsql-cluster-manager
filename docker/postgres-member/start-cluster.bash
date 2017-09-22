@@ -23,21 +23,26 @@ function start_etcd() {
 }
 
 function start_cluster_manager() {
-  dpkg -i /pgsql-cluster-manager.deb
+  dpkg -i /pgsql-cluster-manager/pgsql-cluster-manager*.deb
   cat <<EOF > /usr/local/bin/pgsql-cluster-manager.sh
 #!/bin/bash
 
-export ETCD_HOSTS=http://${PG01}:2379
-export ETCD_NAMESPACE=/postgres
-export PGBOUNCER_CONFIG=/etc/pgbouncer/pgbouncer.ini
-export PGBOUNCER_CONFIG_TEMPLATE=/etc/pgbouncer/pgbouncer.ini.template
-export PGBOUNCER_HOST_KEY=/postgres/master
-
 mkdir /var/log/pgsql
 
-# Boot cluster to listen for migration commands, proxy to manage pgbouncer
-/usr/local/bin/pgsql-cluster-manager cluster >>/var/log/pgsql/manager.log 2>&1 &
-sudo -u postgres /usr/local/bin/pgsql-cluster-manager proxy >>/var/log/pgsql/proxy.log 2>&1 &
+/usr/local/bin/pgsql-cluster-manager supervise cluster \
+  --etcd-namespace /postgres \
+  --etcd-endpoints http://${PG01}:2379 \
+  >>/var/log/pgsql/cluster.log 2>&1 &
+
+sudo -u postgres \
+  /usr/local/bin/pgsql-cluster-manager supervise proxy \
+    --etcd-namespace /postgres \
+    --etcd-endpoints http://${PG01}:2379 \
+    --pgbouncer-config-file /etc/pgbouncer/pgbouncer.ini \
+    --pgbouncer-config-template-file /etc/pgbouncer/pgbouncer.ini.template \
+    --postgres-master-etcd-key /master \
+    --log-level debug \
+    >>/var/log/pgsql/proxy.log 2>&1 &
 EOF
 
   chmod a+x /usr/local/bin/pgsql-cluster-manager.sh
