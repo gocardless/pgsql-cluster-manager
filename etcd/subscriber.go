@@ -48,8 +48,14 @@ func (h *idempotentHandler) Run(kv *mvccpb.KeyValue) error {
 		return staleKeyError{kv.ModRevision}
 	}
 
-	// Fast-forward the revision count to just before this key- we'll be retrying this
-	// current event if it fails, and other retries on older keys should give up.
+	// Subscriber will retry handlers when they return an error, unless that error is
+	// `staleKeyError`. We don't want any handler to run when a key of a higher revision has
+	// been seen. Setting the latest revision to be equal to this key's ModRevision-1 means
+	// any retries for keys that have lower ModRevisions will return staleKeyError, which
+	// will get the subscriber to give up on the retry.
+	//
+	// This allows us to be retrying at-most one key at a time, where that key has the
+	// highest observed revision.
 	h.revision = kv.ModRevision - 1
 	err := h.handler.Run(string(kv.Key), string(kv.Value))
 
@@ -158,8 +164,8 @@ func (s *subscriber) handleEvent(kv *mvccpb.KeyValue) {
 
 	// In the case where the handler has processed seen events more recent than this, give
 	// up and return.
-	if kerr, ok := err.(staleKeyError); ok {
-		eventLogger.Infof("Stale key revision [%d], won't run handler", kerr.revision)
+	if err, ok := err.(staleKeyError); ok {
+		eventLogger.Infof("Stale key revision [%d], won't run handler", err.revision)
 		return
 	}
 
