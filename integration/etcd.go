@@ -1,4 +1,4 @@
-package testHelpers
+package integration
 
 import (
 	"context"

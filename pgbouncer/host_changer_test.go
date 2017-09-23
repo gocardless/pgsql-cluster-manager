@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/gocardless/pgsql-cluster-manager/etcd"
+	"github.com/gocardless/pgsql-cluster-manager/integration"
 	"github.com/gocardless/pgsql-cluster-manager/pgbouncer"
-	"github.com/gocardless/pgsql-cluster-manager/testHelpers"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
@@ -20,8 +20,8 @@ func TestHostChanger(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	etcdClient := testHelpers.StartEtcd(t, ctx)
-	bouncer := testHelpers.StartPGBouncer(t, ctx)
+	etcdClient := integration.StartEtcd(t, ctx)
+	bouncer := integration.StartPGBouncer(t, ctx)
 
 	// Use a debug logger for the etcd subscriber
 	logger := logrus.StandardLogger()

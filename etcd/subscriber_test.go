@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gocardless/pgsql-cluster-manager/testHelpers"
+	"github.com/gocardless/pgsql-cluster-manager/integration"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -24,7 +24,7 @@ func TestSubscriber(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	client := testHelpers.StartEtcd(t, ctx)
+	client := integration.StartEtcd(t, ctx)
 
 	// Helper to put a value and bail if error
 	put := func(key, value string) {

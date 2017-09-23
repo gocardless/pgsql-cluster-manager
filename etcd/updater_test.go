@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/coreos/etcd/clientv3"
-	"github.com/gocardless/pgsql-cluster-manager/testHelpers"
+	"github.com/gocardless/pgsql-cluster-manager/integration"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -31,7 +31,7 @@ func TestUpdater(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	client := testHelpers.StartEtcd(t, ctx)
+	client := integration.StartEtcd(t, ctx)
 	updater := Updater{client}
 
 	put := func(key, value string) *clientv3.PutResponse {
