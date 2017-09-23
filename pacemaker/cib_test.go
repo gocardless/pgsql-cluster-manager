@@ -25,36 +25,34 @@ func TestGet(t *testing.T) {
 		err     error
 	}{
 		{
-			"with three nodes when pg02 is master",
-			"./fixtures/crm_mon_three_node_pg02_master.xml",
-			"pg02",
-			nil,
-		},
-		{
-			"with two nodes when pg03 is master",
-			"./fixtures/crm_mon_two_node_pg03_master.xml",
+			"with sync / async / master",
+			"./fixtures/cib_sync_async_master.xml",
 			"pg03",
 			nil,
 		},
 		{
+			"with master / sync / died",
+			"./fixtures/cib_master_sync_died.xml",
+			"pg01",
+			nil,
+		},
+		{
 			"when we don't have quorum",
-			"./fixtures/crm_mon_three_node_no_quorum.xml",
+			"./fixtures/cib_master_died_died.xml",
 			"",
-			errors.New("Cannot find designated controller with quorum"),
+			errors.New("no quorum"),
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			executor := new(fakeExecutor)
-			crmMon := CrmMon{executor}
-
 			fixture, fixtureErr := ioutil.ReadFile(tc.fixture)
 			require.Nil(t, fixtureErr)
 
-			executor.On("CombinedOutput", "crm_mon", []string{"--as-xml"}).Return(fixture, nil)
+			executor := new(fakeExecutor)
+			executor.On("CombinedOutput", "cibadmin", []string{"--query", "--local"}).Return(fixture, nil)
 
-			nodes, err := crmMon.Get("crm_mon/resources/clone[@id='msPostgresql']/resource[@role='Master']/node[@name]")
+			nodes, err := Cib{executor}.Get(MasterXPath)
 
 			executor.AssertExpectations(t)
 
@@ -66,7 +64,7 @@ func TestGet(t *testing.T) {
 
 			if tc.value != "" {
 				assert.Equal(t, 1, len(nodes), "expected only one node result")
-				assert.Equal(t, tc.value, nodes[0].SelectAttrValue("name", ""))
+				assert.Equal(t, tc.value, nodes[0].SelectAttrValue("uname", ""))
 			}
 		})
 	}

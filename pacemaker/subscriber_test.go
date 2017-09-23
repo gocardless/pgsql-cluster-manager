@@ -13,9 +13,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type fakeCrmMon struct{ mock.Mock }
+type fakeCib struct{ mock.Mock }
 
-func (c fakeCrmMon) Get(xpaths ...string) ([]*etree.Element, error) {
+func (c fakeCib) Get(xpaths ...string) ([]*etree.Element, error) {
 	args := c.Called(xpaths)
 	return args.Get(0).([]*etree.Element), args.Error(1)
 }
@@ -143,14 +143,14 @@ func TestStart(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			// Stub crmMon to expect the given tc.getParams, returning tc.getResults.
-			crmMon := new(fakeCrmMon)
+			// Stub cib to expect the given tc.getParams, returning tc.getResults.
+			cib := new(fakeCib)
 			for _, results := range tc.getResults {
-				crmMon.On("Get", tc.getParams).Return(results, nil).Once()
+				cib.On("Get", tc.getParams).Return(results, nil).Once()
 			}
 
 			// This last stub will cancel our context, causing the watch to come to an end
-			crmMon.On("Get", tc.getParams).Return(tc.getResults[len(tc.getResults)-1], nil).
+			cib.On("Get", tc.getParams).Return(tc.getResults[len(tc.getResults)-1], nil).
 				Run(func(args mock.Arguments) {
 					cancel()
 				})
@@ -165,7 +165,7 @@ func TestStart(t *testing.T) {
 				logger.Level = logrus.DebugLevel
 
 				s := subscriber{
-					crmStore:  crmMon,
+					cib:       cib,
 					logger:    logger,
 					nodes:     tc.nodes,
 					handlers:  tc.handlers,

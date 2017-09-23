@@ -1,0 +1,124 @@
+<cib epoch="19" num_updates="3" admin_epoch="0" validate-with="pacemaker-1.2" crm_feature_set="3.0.7" cib-last-written="Sat Sep 23 16:52:45 2017" update-origin="pg01" update-client="crm_attribute" have-quorum="1" dc-uuid="1">
+  <configuration>
+    <crm_config>
+      <cluster_property_set id="cib-bootstrap-options">
+        <nvpair id="cib-bootstrap-options-dc-version" name="dc-version" value="1.1.10-42f2063"/>
+        <nvpair id="cib-bootstrap-options-cluster-infrastructure" name="cluster-infrastructure" value="corosync"/>
+        <nvpair name="stonith-enabled" value="false" id="cib-bootstrap-options-stonith-enabled"/>
+        <nvpair name="default-resource-stickiness" value="100" id="cib-bootstrap-options-default-resource-stickiness"/>
+      </cluster_property_set>
+    </crm_config>
+    <nodes>
+      <node id="1" uname="pg01">
+        <instance_attributes id="nodes-1">
+          <nvpair id="nodes-1-Postgresql-data-status" name="Postgresql-data-status" value="LATEST"/>
+        </instance_attributes>
+      </node>
+      <node id="2" uname="pg02">
+        <instance_attributes id="nodes-2">
+          <nvpair id="nodes-2-Postgresql-data-status" name="Postgresql-data-status" value="STREAMING|SYNC"/>
+        </instance_attributes>
+      </node>
+      <node id="3" uname="pg03">
+        <instance_attributes id="nodes-3">
+          <nvpair id="nodes-3-Postgresql-data-status" name="Postgresql-data-status" value="DISCONNECT"/>
+        </instance_attributes>
+      </node>
+    </nodes>
+    <resources>
+      <master id="msPostgresql">
+        <instance_attributes id="msPostgresql-instance_attributes">
+          <nvpair name="master-max" value="1" id="msPostgresql-instance_attributes-master-max"/>
+          <nvpair name="master-node-max" value="1" id="msPostgresql-instance_attributes-master-node-max"/>
+          <nvpair name="clone-max" value="3" id="msPostgresql-instance_attributes-clone-max"/>
+          <nvpair name="clone-node-max" value="1" id="msPostgresql-instance_attributes-clone-node-max"/>
+          <nvpair name="notify" value="true" id="msPostgresql-instance_attributes-notify"/>
+        </instance_attributes>
+        <primitive id="Postgresql" class="ocf" provider="heartbeat" type="pgsql">
+          <instance_attributes id="Postgresql-instance_attributes">
+            <nvpair name="pgctl" value="/usr/lib/postgresql/9.4/bin/pg_ctl" id="Postgresql-instance_attributes-pgctl"/>
+            <nvpair name="psql" value="/usr/bin/psql" id="Postgresql-instance_attributes-psql"/>
+            <nvpair name="pgdata" value="/var/lib/postgresql/9.4/main/" id="Postgresql-instance_attributes-pgdata"/>
+            <nvpair name="start_opt" value="-p 5432" id="Postgresql-instance_attributes-start_opt"/>
+            <nvpair name="rep_mode" value="sync" id="Postgresql-instance_attributes-rep_mode"/>
+            <nvpair name="node_list" value="pg01 pg02 pg03" id="Postgresql-instance_attributes-node_list"/>
+            <nvpair name="primary_conninfo_opt" value="keepalives_idle=60 keepalives_interval=5     keepalives_count=5" id="Postgresql-instance_attributes-primary_conninfo_opt"/>
+            <nvpair name="repuser" value="postgres" id="Postgresql-instance_attributes-repuser"/>
+            <nvpair name="tmpdir" value="/var/lib/postgresql/9.4/tmp" id="Postgresql-instance_attributes-tmpdir"/>
+            <nvpair name="config" value="/etc/postgresql/9.4/main/postgresql.conf" id="Postgresql-instance_attributes-config"/>
+            <nvpair name="logfile" value="/var/log/postgresql/postgresql-crm.log" id="Postgresql-instance_attributes-logfile"/>
+            <nvpair name="restore_command" value="exit 0" id="Postgresql-instance_attributes-restore_command"/>
+          </instance_attributes>
+          <operations>
+            <op name="start" timeout="60s" interval="0s" on-fail="restart" id="Postgresql-start-0s"/>
+            <op name="monitor" timeout="60s" interval="2s" on-fail="restart" id="Postgresql-monitor-2s"/>
+            <op name="monitor" timeout="60s" interval="1s" on-fail="restart" role="Master" id="Postgresql-monitor-1s"/>
+            <op name="promote" timeout="60s" interval="0s" on-fail="restart" id="Postgresql-promote-0s"/>
+            <op name="demote" timeout="60s" interval="0s" on-fail="stop" id="Postgresql-demote-0s"/>
+            <op name="stop" timeout="60s" interval="0s" on-fail="block" id="Postgresql-stop-0s"/>
+            <op name="notify" timeout="60s" interval="0s" id="Postgresql-notify-0s"/>
+          </operations>
+        </primitive>
+      </master>
+    </resources>
+    <constraints/>
+  </configuration>
+  <status>
+    <node_state id="3" uname="pg03" in_ccm="false" crmd="offline" crm-debug-origin="post_cache_update" join="member" expected="member">
+      <lrm id="3">
+        <lrm_resources>
+          <lrm_resource id="Postgresql" type="pgsql" class="ocf" provider="heartbeat">
+            <lrm_rsc_op id="Postgresql_last_0" operation_key="Postgresql_promote_0" operation="promote" crm-debug-origin="do_update_resource" crm_feature_set="3.0.7" transition-key="10:6:0:0885c537-c1d0-416c-9598-155077c4ccd0" transition-magic="0:0;10:6:0:0885c537-c1d0-416c-9598-155077c4ccd0" call-id="30" rc-code="0" op-status="0" interval="0" last-run="1506183942" last-rc-change="1506183942" exec-time="4255" queue-time="0" op-digest="b524129563add4f2b26f3e5f4f435089"/>
+            <lrm_rsc_op id="Postgresql_monitor_1000" operation_key="Postgresql_monitor_1000" operation="monitor" crm-debug-origin="do_update_resource" crm_feature_set="3.0.7" transition-key="11:10:8:0885c537-c1d0-416c-9598-155077c4ccd0" transition-magic="0:8;11:10:8:0885c537-c1d0-416c-9598-155077c4ccd0" call-id="51" rc-code="8" op-status="0" interval="1000" last-rc-change="1506183956" exec-time="880" queue-time="0" op-digest="bfb592b50a6b84a3bde35dcfe85546f4"/>
+          </lrm_resource>
+        </lrm_resources>
+      </lrm>
+      <transient_attributes id="3">
+        <instance_attributes id="status-3">
+          <nvpair id="status-3-probe_complete" name="probe_complete" value="true"/>
+          <nvpair id="status-3-Postgresql-status" name="Postgresql-status" value="PRI"/>
+          <nvpair id="status-3-master-Postgresql" name="master-Postgresql" value="1000"/>
+          <nvpair id="status-3-Postgresql-master-baseline" name="Postgresql-master-baseline" value="0000000002000090"/>
+        </instance_attributes>
+      </transient_attributes>
+    </node_state>
+    <node_state id="1" uname="pg01" in_ccm="true" crmd="online" crm-debug-origin="do_update_resource" join="member" expected="member">
+      <lrm id="1">
+        <lrm_resources>
+          <lrm_resource id="Postgresql" type="pgsql" class="ocf" provider="heartbeat">
+            <lrm_rsc_op id="Postgresql_last_0" operation_key="Postgresql_promote_0" operation="promote" crm-debug-origin="do_update_resource" crm_feature_set="3.0.7" transition-key="8:19:0:0885c537-c1d0-416c-9598-155077c4ccd0" transition-magic="0:0;8:19:0:0885c537-c1d0-416c-9598-155077c4ccd0" call-id="55" rc-code="0" op-status="0" interval="0" last-run="1506185547" last-rc-change="1506185547" exec-time="5155" queue-time="0" op-digest="b524129563add4f2b26f3e5f4f435089"/>
+            <lrm_rsc_op id="Postgresql_monitor_1000" operation_key="Postgresql_monitor_1000" operation="monitor" crm-debug-origin="do_update_resource" crm_feature_set="3.0.7" transition-key="10:20:8:0885c537-c1d0-416c-9598-155077c4ccd0" transition-magic="0:8;10:20:8:0885c537-c1d0-416c-9598-155077c4ccd0" call-id="61" rc-code="8" op-status="0" interval="1000" last-rc-change="1506185556" exec-time="1784" queue-time="0" op-digest="bfb592b50a6b84a3bde35dcfe85546f4"/>
+          </lrm_resource>
+        </lrm_resources>
+      </lrm>
+      <transient_attributes id="1">
+        <instance_attributes id="status-1">
+          <nvpair id="status-1-probe_complete" name="probe_complete" value="true"/>
+          <nvpair id="status-1-Postgresql-status" name="Postgresql-status" value="PRI"/>
+          <nvpair id="status-1-master-Postgresql" name="master-Postgresql" value="1000"/>
+          <nvpair id="status-1-Postgresql-master-baseline" name="Postgresql-master-baseline" value="00000000020005D0"/>
+        </instance_attributes>
+      </transient_attributes>
+    </node_state>
+    <node_state id="2" uname="pg02" in_ccm="true" crmd="online" crm-debug-origin="post_cache_update" join="member" expected="member">
+      <lrm id="2">
+        <lrm_resources>
+          <lrm_resource id="Postgresql" type="pgsql" class="ocf" provider="heartbeat">
+            <lrm_rsc_op id="Postgresql_last_0" operation_key="Postgresql_start_0" operation="start" crm-debug-origin="do_update_resource" crm_feature_set="3.0.7" transition-key="14:9:0:0885c537-c1d0-416c-9598-155077c4ccd0" transition-magic="0:0;14:9:0:0885c537-c1d0-416c-9598-155077c4ccd0" call-id="42" rc-code="0" op-status="0" interval="0" last-run="1506183953" last-rc-change="1506183953" exec-time="545" queue-time="0" op-digest="b524129563add4f2b26f3e5f4f435089"/>
+            <lrm_rsc_op id="Postgresql_monitor_2000" operation_key="Postgresql_monitor_2000" operation="monitor" crm-debug-origin="do_update_resource" crm_feature_set="3.0.7" transition-key="16:10:0:0885c537-c1d0-416c-9598-155077c4ccd0" transition-magic="0:0;16:10:0:0885c537-c1d0-416c-9598-155077c4ccd0" call-id="48" rc-code="0" op-status="0" interval="2000" last-rc-change="1506183956" exec-time="485" queue-time="0" op-digest="bfb592b50a6b84a3bde35dcfe85546f4"/>
+            <lrm_rsc_op id="Postgresql_last_failure_0" operation_key="Postgresql_monitor_2000" operation="monitor" crm-debug-origin="do_update_resource" crm_feature_set="3.0.7" transition-key="14:2:0:0885c537-c1d0-416c-9598-155077c4ccd0" transition-magic="0:7;14:2:0:0885c537-c1d0-416c-9598-155077c4ccd0" call-id="15" rc-code="7" op-status="0" interval="2000" last-rc-change="1506183948" exec-time="0" queue-time="0" op-digest="bfb592b50a6b84a3bde35dcfe85546f4"/>
+          </lrm_resource>
+        </lrm_resources>
+      </lrm>
+      <transient_attributes id="2">
+        <instance_attributes id="status-2">
+          <nvpair id="status-2-probe_complete" name="probe_complete" value="true"/>
+          <nvpair id="status-2-Postgresql-status" name="Postgresql-status" value="HS:sync"/>
+          <nvpair id="status-2-master-Postgresql" name="master-Postgresql" value="100"/>
+          <nvpair id="status-2-fail-count-Postgresql" name="fail-count-Postgresql" value="1"/>
+          <nvpair id="status-2-last-failure-Postgresql" name="last-failure-Postgresql" value="1506183948"/>
+        </instance_attributes>
+      </transient_attributes>
+    </node_state>
+  </status>
+</cib>

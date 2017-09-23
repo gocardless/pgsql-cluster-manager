@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/gocardless/pgsql-cluster-manager/pacemaker"
 	"github.com/gocardless/pgsql-cluster-manager/supervise"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -63,9 +64,6 @@ func superviseProxyCommandFunc(cmd *cobra.Command, args []string) {
 	)
 }
 
-// This will select the current master node for standard install of the pgsql OCF resource
-var defaultMasterCrmXPath = "crm_mon/resources/clone[@id='msPostgresql']/resource[@role='Master']/node[@name]"
-
 func newSuperviseClusterCommand() *cobra.Command {
 	sc := &cobra.Command{
 		Use:   "cluster [options]",
@@ -78,7 +76,7 @@ func newSuperviseClusterCommand() *cobra.Command {
 	flags := sc.Flags()
 
 	flags.String("postgres-master-etcd-key", "/master", "etcd key that stores current Postgres primary")
-	flags.String("postgres-master-crm-xpath", defaultMasterCrmXPath, "XPath selector into crm_mon --as-xml that finds current master")
+	flags.String("postgres-master-crm-xpath", pacemaker.MasterXPath, "XPath selector into cibadmin that finds current master")
 
 	viper.BindPFlag("postgres-master-etcd-key", flags.Lookup("postgres-master-etcd-key"))
 	viper.BindPFlag("postgres-master-crm-xpath", flags.Lookup("postgres-master-crm-xpath"))

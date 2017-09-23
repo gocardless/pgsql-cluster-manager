@@ -11,15 +11,15 @@ import (
 )
 
 type subscriber struct {
-	crmStore
+	cib
 	logger    *logrus.Logger
 	handlers  map[string]handler
 	nodes     []*crmNode
 	newTicker func() *time.Ticker
 }
 
-// crmNode represents an element in the output XML of crm_mon, selected using the given
-// XPath, tracking change on the given Attribute.
+// crmNode represents an element in the pacemaker cib XML, selected using the given XPath,
+// tracking change on the given Attribute.
 type crmNode struct {
 	Alias     string // name of handler to call when node changes value
 	XPath     string // query into the CRM
@@ -27,7 +27,7 @@ type crmNode struct {
 	value     string // stored value previously associated with this node
 }
 
-type crmStore interface {
+type cib interface {
 	Get(...string) ([]*etree.Element, error)
 }
 
@@ -42,7 +42,7 @@ type handler interface {
 //   pacemaker.WatchNode("master", "//resource[@id='master']", "name"),
 // )
 //
-// would construct a subscriber that will watch for changes in crm_mon to the 'name'
+// would construct a subscriber that will watch for changes in the cib to the 'name'
 // attribute of the resource element with id 'master'. The subscriber will trigger the
 // handler registered on 'master' with the new values of the attribute.
 func WatchNode(alias, xpath, attribute string) func(*subscriber) {
@@ -61,16 +61,16 @@ func WithLogger(logger *logrus.Logger) func(*subscriber) {
 }
 
 // NewSubscriber constructs a default subscriber configured to watch specific XML nodes
-// inside the crm_mon state.
+// inside the cib state.
 func NewSubscriber(options ...func(*subscriber)) *subscriber {
 	nullLogger := logrus.New()
 	nullLogger.Out = ioutil.Discard
 
 	s := &subscriber{
-		crmStore: NewCrmMon(250 * time.Millisecond), // required to be less than the ticker
-		logger:   nullLogger,                        // for ease of use, default to using a null logger
-		nodes:    []*crmNode{},                      // start with an empty node list
-		handlers: map[string]handler{},              // use AddHandler to add handlers
+		cib:      NewCib(250 * time.Millisecond), // required to be less than the ticker
+		logger:   nullLogger,                     // for ease of use, default to using a null logger
+		nodes:    []*crmNode{},                   // start with an empty node list
+		handlers: map[string]handler{},           // use AddHandler to add handlers
 		newTicker: func() *time.Ticker {
 			return time.NewTicker(500 * time.Millisecond) // 500ms provides frequent updates
 		},
@@ -133,7 +133,7 @@ func (s *subscriber) watch(ctx context.Context) chan *crmNode {
 		for {
 			select {
 			case <-ticker.C:
-				s.logger.Debug("Polling crm_mon...")
+				s.logger.Debug("Polling cib...")
 
 				if err := s.updateNodes(watchChan); err != nil {
 					s.logger.WithError(err).Error("Failed to update nodes")
@@ -150,7 +150,7 @@ func (s *subscriber) watch(ctx context.Context) chan *crmNode {
 // updateNodes queries crm to find current node values, updates the value on each node and
 // sends nodes that have been updated down the given channel.
 func (s *subscriber) updateNodes(updated chan *crmNode) error {
-	elements, err := s.crmStore.Get(s.xpaths()...)
+	elements, err := s.cib.Get(s.xpaths()...)
 
 	if err != nil {
 		return err

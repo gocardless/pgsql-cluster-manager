@@ -14,11 +14,11 @@ func Cluster(
 	logger *logrus.Logger, // log all output here
 	client *clientv3.Client, // watch for changes using this etcd client
 	etcdHostKey string, // set the Postgres host at this key
-	masterCrmXPath string, // selector for crm_mon to identify current master
+	masterCrmXPath string, // selector into the cib that identifies current master
 ) {
 	// Watch for changes to master node, calling the handler registered on the host key
 	crmSub := pacemaker.NewSubscriber(
-		pacemaker.WatchNode(etcdHostKey, masterCrmXPath, "name"),
+		pacemaker.WatchNode(etcdHostKey, masterCrmXPath, "uname"),
 		pacemaker.WithLogger(logger),
 	)
 
