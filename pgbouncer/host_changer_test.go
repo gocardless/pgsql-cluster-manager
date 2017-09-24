@@ -8,7 +8,7 @@ import (
 	"github.com/gocardless/pgsql-cluster-manager/etcd"
 	"github.com/gocardless/pgsql-cluster-manager/integration"
 	"github.com/gocardless/pgsql-cluster-manager/pgbouncer"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
 

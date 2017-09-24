@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/beevik/etree"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"golang.org/x/net/context"
 )
 

@@ -6,7 +6,7 @@ import (
 	"github.com/coreos/etcd/clientv3"
 	"github.com/gocardless/pgsql-cluster-manager/etcd"
 	"github.com/gocardless/pgsql-cluster-manager/pgbouncer"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 func Proxy(

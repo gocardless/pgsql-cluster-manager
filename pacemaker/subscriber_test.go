@@ -8,7 +8,7 @@ import (
 	"golang.org/x/net/context"
 
 	"github.com/beevik/etree"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
