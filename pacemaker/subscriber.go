@@ -67,10 +67,10 @@ func NewSubscriber(options ...func(*subscriber)) *subscriber {
 	nullLogger.Out = ioutil.Discard
 
 	s := &subscriber{
-		cib:      NewCib(250 * time.Millisecond), // required to be less than the ticker
-		logger:   nullLogger,                     // for ease of use, default to using a null logger
-		nodes:    []*crmNode{},                   // start with an empty node list
-		handlers: map[string]handler{},           // use AddHandler to add handlers
+		cib:      NewCib(),             // required to be less than the ticker
+		logger:   nullLogger,           // for ease of use, default to using a null logger
+		nodes:    []*crmNode{},         // start with an empty node list
+		handlers: map[string]handler{}, // use AddHandler to add handlers
 		newTicker: func() *time.Ticker {
 			return time.NewTicker(500 * time.Millisecond) // 500ms provides frequent updates
 		},

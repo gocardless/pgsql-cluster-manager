@@ -36,8 +36,20 @@ func (e systemExecutor) CombinedOutput(name string, args ...string) ([]byte, err
 	return exec.CommandContext(ctx, name, args...).CombinedOutput()
 }
 
-func NewCib(timeout time.Duration) *Cib {
-	return &Cib{systemExecutor{timeout}}
+func WithExecutor(e executor) func(*Cib) {
+	return func(c *Cib) {
+		c.executor = e
+	}
+}
+
+func NewCib(options ...func(*Cib)) *Cib {
+	c := &Cib{systemExecutor{500 * time.Millisecond}}
+
+	for _, option := range options {
+		option(c)
+	}
+
+	return c
 }
 
 // Get returns nodes from the cibadmin XML output, extracted using the given XPaths. If we
