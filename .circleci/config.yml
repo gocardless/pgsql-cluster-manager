@@ -33,16 +33,10 @@ jobs:
     working_directory: /home/circleci/go/src/github.com/gocardless/pgsql-novips
     steps:
       - checkout
-      - run:
-          name: Install Golang dependencies
-          command: dep ensure
       - *restore_bundle
       - *bundle_install
       - *cache_bundle_for_lockfile
       - *cache_bundle
-      - run:
-          name: Rubocop
-          command: bundle exec rubocop
       - run:
           name: Unit test and build deb
           command: make deb
