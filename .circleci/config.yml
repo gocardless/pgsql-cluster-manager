@@ -27,10 +27,10 @@ references:
 jobs:
   build:
     docker:
-      - image: gocardless/pgsql-novips-circleci:latest
+      - image: gocardless/pgsql-cluster-manager-circleci:latest
         environment:
           BUNDLE_PATH: vendor/bundle
-    working_directory: /home/circleci/go/src/github.com/gocardless/pgsql-novips
+    working_directory: /home/circleci/go/src/github.com/gocardless/pgsql-cluster-manager
     steps:
       - checkout
       - *restore_bundle
@@ -39,4 +39,4 @@ jobs:
       - *cache_bundle
       - run:
           name: Unit test and build deb
-          command: make deb
+          command: make test && make deb
