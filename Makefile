@@ -2,18 +2,17 @@ VERSION=0.0.1
 PROG=pgsql-cluster-manager
 PREFIX=/usr/local
 BUILD_COMMAND=go build -ldflags "-X github.com/gocardless/pgsql-cluster-manager/command.Version=$(VERSION)"
-PACKAGES=$(shell go list ./... | grep -v /vendor/)
 
-.PHONY: build test clean circleci-dockerfile publish-circleci-dockerfile $(PROG).linux_amd64
+.PHONY: build build-integration test $(PROG).linux_amd64 clean build-postgres-member-dockerfile publish-dockerfile publish-circleci-dockerfile
 
 build:
 	$(BUILD_COMMAND) -o $(PROG) *.go
 
-test:
-	go test $(PACKAGES)
+build-integration:
+	go test -tags integration -c github.com/gocardless/pgsql-cluster-manager/integration
 
-lint:
-	golint $(PACKAGES)
+test:
+	go test ./...
 
 deb: $(PROG).linux_amd64
 	rm -fv *.deb
@@ -27,13 +26,16 @@ deb: $(PROG).linux_amd64
 $(PROG).linux_amd64:
 	GOOS=linux GOARCH=amd64 $(BUILD_COMMAND) -o $(PROG).linux_amd64 *.go
 
-publish-circleci-dockerfile:
-	docker build -t gocardless/pgsql-cluster-manager-circleci .circleci && \
-		docker push gocardless/pgsql-cluster-manager-circleci
-
-publish-pgsql-postgres-member-dockerfile:
-	docker build -t gocardless/pgsql-postgres-member docker/postgres-member && \
-		docker push gocardless/pgsql-postgres-member
-
 clean:
-	rm -vf $(PROG) $(PROG).linux_amd64 *.deb
+	rm -vf $(PROG) $(PROG).linux_amd64 *.deb *.test
+
+build-postgres-member-dockerfile:
+	docker build -t gocardless/postgres-member docker/postgres-member
+
+publish-dockerfile:
+	docker build -t gocardless/pgsql-cluster-manager . \
+		&& docker push gocardless/pgsql-cluster-manager
+
+publish-circleci-dockerfile:
+	docker build -t gocardless/pgsql-cluster-manager .circleci \
+		&& docker push gocardless/pgsql-cluster-manager-circleci
