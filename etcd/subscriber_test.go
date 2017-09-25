@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gocardless/pgsql-cluster-manager/integration"
 	"github.com/Sirupsen/logrus"
+	"github.com/gocardless/pgsql-cluster-manager/integration"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -34,7 +34,7 @@ func TestSubscriber(t *testing.T) {
 
 	// Returns true if timed-out waiting for condition to become true
 	timeoutUnless := func(condition func() bool) bool {
-		timeout := time.After(2 * time.Second)
+		timeout := time.After(10 * time.Second)
 
 		for {
 			select {
