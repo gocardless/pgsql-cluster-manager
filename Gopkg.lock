@@ -2,18 +2,6 @@
 
 
 [[projects]]
-  branch = "dont_export_tests"
-  name = "github.com/Azure/go-ansiterm"
-  packages = [".","winterm"]
-  revision = "04b7f292a41fcb5da32dda536c0807fc13e8351c"
-
-[[projects]]
-  name = "github.com/Microsoft/go-winio"
-  packages = ["."]
-  revision = "78439966b38d69bf38227fbf57ac8a6fee70f69a"
-  version = "v0.4.5"
-
-[[projects]]
   name = "github.com/Sirupsen/logrus"
   packages = ["."]
   revision = "f006c2ac4710855cf0f916dd6b77acf6b048dc6e"
@@ -38,34 +26,10 @@
   version = "v1.1.0"
 
 [[projects]]
-  name = "github.com/docker/docker"
-  packages = ["api/types","api/types/blkiodev","api/types/container","api/types/filters","api/types/mount","api/types/network","api/types/registry","api/types/strslice","api/types/swarm","api/types/versions","opts","pkg/archive","pkg/fileutils","pkg/homedir","pkg/idtools","pkg/ioutils","pkg/jsonlog","pkg/jsonmessage","pkg/longpath","pkg/pools","pkg/promise","pkg/stdcopy","pkg/system","pkg/term","pkg/term/windows"]
-  revision = "092cba3727bb9b4a2f0e922cd6c0f93ea270e363"
-  version = "v1.13.1"
-
-[[projects]]
-  name = "github.com/docker/go-connections"
-  packages = ["nat"]
-  revision = "3ede32e2033de7505e6500d6c868c2b9ed9f169d"
-  version = "v0.3.0"
-
-[[projects]]
-  name = "github.com/docker/go-units"
-  packages = ["."]
-  revision = "0dadbb0345b35ec7ef35e228dabb8de89a65bf52"
-  version = "v0.3.2"
-
-[[projects]]
   name = "github.com/fsnotify/fsnotify"
   packages = ["."]
   revision = "629574ca2a5df945712d3079857300b5e4da0236"
   version = "v1.4.2"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/fsouza/go-dockerclient"
-  packages = ["."]
-  revision = "d6c9513c3abe61f13e41c22bc013346eb96e1fe5"
 
 [[projects]]
   branch = "master"
@@ -102,12 +66,6 @@
   name = "github.com/mitchellh/mapstructure"
   packages = ["."]
   revision = "d0303fe809921458f417bcf828397a65db30a7e4"
-
-[[projects]]
-  name = "github.com/opencontainers/runc"
-  packages = ["libcontainer/system","libcontainer/user"]
-  revision = "baf6536d6259209c3edfa2b22237af82942d3dfa"
-  version = "v0.1.1"
 
 [[projects]]
   name = "github.com/pelletier/go-buffruneio"
@@ -190,7 +148,7 @@
 [[projects]]
   branch = "master"
   name = "golang.org/x/net"
-  packages = ["context","context/ctxhttp","http2","http2/hpack","idna","internal/timeseries","lex/httplex","trace"]
+  packages = ["context","http2","http2/hpack","idna","internal/timeseries","lex/httplex","trace"]
   revision = "57efc9c3d9f91fb3277f8da1cff370539c4d3dc5"
 
 [[projects]]
@@ -226,6 +184,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "781992b61ae3ece72e90111eb9aa6c6ef0f6464e10821933f5239186175ea07e"
+  inputs-digest = "f0168c445bfa25717569d83277136c375d44f6c9a24b8b3c0c940318821489e3"
   solver-name = "gps-cdcl"
   solver-version = 1
