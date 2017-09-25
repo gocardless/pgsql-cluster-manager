@@ -8,8 +8,9 @@ function run-container() {
     --hostname "$1" \
     --privileged \
     --detach \
+    --publish-all \
     --volume "$(git rev-parse --show-toplevel):/pgsql-cluster-manager" \
-    postgres-member \
+    gocardless/pgsql-postgres-member \
     sh -c "while :; do sleep 1; done")
   docker inspect "$id" | jq -r '.[0].NetworkSettings.IPAddress'
 }

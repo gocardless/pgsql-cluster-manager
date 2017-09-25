@@ -5,51 +5,15 @@
 
 set -eu
 
+[[ -t 1 ]] || exec >/var/log/start-cluster.log 2>&1
+
 PG01="$1"
 PG02="$2"
 PG03="$3"
 
-function start_etcd() {
-  echo "Starting etcd"
-  /usr/bin/etcd \
-    --data-dir /tmp \
-    --listen-client-urls http://0.0.0.0:2379 \
-    --advertise-client-urls http://0.0.0.0:2379 \
-    >>/var/log/etcd.log 2>&1 &
-  until etcdctl --endpoints http://127.0.0.1:2379 cluster-health 2>&1 /dev/null;
-  do
-    sleep 1
-  done
-}
+HOST="$(hostname -i | awk '{print $1}')"
 
-function start_cluster_manager() {
-  dpkg -i /pgsql-cluster-manager/pgsql-cluster-manager*.deb
-  cat <<EOF > /usr/local/bin/pgsql-cluster-manager.sh
-#!/bin/bash
-
-mkdir /var/log/pgsql
-
-/usr/local/bin/pgsql-cluster-manager supervise cluster \
-  --etcd-namespace /postgres \
-  --etcd-endpoints http://${PG01}:2379 \
-  >>/var/log/pgsql/cluster.log 2>&1 &
-
-sudo -u postgres \
-  /usr/local/bin/pgsql-cluster-manager supervise proxy \
-    --etcd-namespace /postgres \
-    --etcd-endpoints http://${PG01}:2379 \
-    --pgbouncer-config-file /etc/pgbouncer/pgbouncer.ini \
-    --pgbouncer-config-template-file /etc/pgbouncer/pgbouncer.ini.template \
-    --postgres-master-etcd-key /master \
-    --log-level debug \
-    >>/var/log/pgsql/proxy.log 2>&1 &
-EOF
-
-  chmod a+x /usr/local/bin/pgsql-cluster-manager.sh
-  /usr/local/bin/pgsql-cluster-manager.sh
-}
-
-function generate_corosync_conf() {
+function start_corosync() {
   echo "Generating corosync config"
   cat <<EOF > /etc/corosync/corosync.conf
 totem {
@@ -105,9 +69,8 @@ logging {
         fileline: off
         to_stderr: yes
         to_logfile: yes
-        to_syslog: yes
+        to_syslog: no
         logfile: /var/log/corosync/corosync.log
-        syslog_facility: daemon
         debug: off
         timestamp: on
         logger_subsys {
@@ -120,13 +83,18 @@ EOF
 
   chown root:root /etc/corosync/corosync.conf
   chmod 644 /etc/corosync/corosync.conf
-}
 
-function start_services() {
   echo "Starting corosync/pacemaker"
   corosync # this starts corosync in the background
   service pacemaker start
-  service pgbouncer start
+}
+
+function wait_for_quorum() {
+  echo -n "Waiting for quorum..."
+  until crm status | grep -q '3 Nodes configured'; do
+      sleep 1 && printf "."
+  done
+  echo " done!"
 }
 
 function configure_corosync() {
@@ -154,25 +122,87 @@ end
 EOF
 }
 
-function wait_for_quorum() {
-  echo -n "Waiting for quorum..."
-  until crm status | grep -q '3 Nodes configured'; do
-      sleep 1 && printf "."
+function wait_for_roles() {
+  echo "Waiting for master/sync/async..."
+  while true; do
+    echo "[$(date)] Polling..."
+    (crm node list | grep 'LATEST') && \
+      (crm node list | grep 'STREAMING|POTENTIAL') && \
+      (crm node list | grep 'STREAMING|SYNC') && \
+      return
+    sleep 1
   done
-  echo " done!"
 }
 
-if [ "$(hostname -i)" == "$PG01" ]; then
-  start_etcd
-fi
+function configure_dns() {
+  cat <<EOF >>/etc/hosts
+$PG01 pg01
+$PG02 pg02
+$PG03 pg03
+EOF
+}
 
-start_cluster_manager
-generate_corosync_conf
-start_services
+function start_etcd() {
+  echo "Starting etcd"
+  /usr/bin/etcd \
+    --name "$(hostname)" \
+    --data-dir /tmp \
+    --listen-peer-urls "http://$HOST:2380" \
+    --initial-advertise-peer-urls "http://$HOST:2380" \
+    --listen-client-urls http://0.0.0.0:2379 \
+    --advertise-client-urls http://0.0.0.0:2379 \
+    --initial-cluster "pg01=http://$PG01:2380,pg02=http://$PG02:2380,pg03=http://$PG03:2380" \
+    --initial-cluster-token "some-randomness" \
+    --initial-cluster-state new \
+    >>/var/log/etcd.log 2>&1 &
+  until etcdctl --endpoints http://127.0.0.1:2379 cluster-health 2>&1 /dev/null;
+  do
+    sleep 1
+  done
+}
+
+function start_pgbouncer() {
+  echo "Starting PGBouncer"
+  service pgbouncer start
+}
+
+function start_cluster_manager() {
+  echo "Installing pgsql-cluster-manager"
+  dpkg -i /pgsql-cluster-manager/pgsql-cluster-manager*.deb
+  cat <<EOF > /usr/local/bin/pgsql-cluster-manager.sh
+#!/bin/bash
+
+mkdir /var/log/pgsql
+
+/usr/local/bin/pgsql-cluster-manager supervise cluster \
+  --etcd-namespace /postgres \
+  >>/var/log/pgsql/cluster.log 2>&1 &
+
+sudo -u postgres \
+  /usr/local/bin/pgsql-cluster-manager supervise proxy \
+    --etcd-namespace /postgres \
+    --pgbouncer-config-file /etc/pgbouncer/pgbouncer.ini \
+    --pgbouncer-config-template-file /etc/pgbouncer/pgbouncer.ini.template \
+    --postgres-master-etcd-key /master \
+    --log-level debug \
+    >>/var/log/pgsql/proxy.log 2>&1 &
+EOF
+
+  chmod a+x /usr/local/bin/pgsql-cluster-manager.sh
+  /usr/local/bin/pgsql-cluster-manager.sh
+}
+
+start_corosync
+wait_for_quorum
 
 if [ "$(hostname -i)" == "$PG01" ]; then
-  wait_for_quorum
   configure_corosync
 fi
+
+wait_for_roles
+configure_dns # needs to happen before PGBouncer
+start_etcd
+start_pgbouncer
+start_cluster_manager
 
 echo "Cluster is running"

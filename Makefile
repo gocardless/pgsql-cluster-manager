@@ -28,10 +28,12 @@ $(PROG).linux_amd64:
 	GOOS=linux GOARCH=amd64 $(BUILD_COMMAND) -o $(PROG).linux_amd64 *.go
 
 publish-circleci-dockerfile:
-	cd .circleci && \
-		docker build -t pgsql-cluster-manager-circleci . && \
-		docker tag pgsql-cluster-manager-circleci gocardless/pgsql-cluster-manager-circleci:latest && \
-		docker push gocardless/pgsql-cluster-manager-circleci:latest
+	docker build -t gocardless/pgsql-cluster-manager-circleci .circleci && \
+		docker push gocardless/pgsql-cluster-manager-circleci
+
+publish-pgsql-postgres-member-dockerfile:
+	docker build -t gocardless/pgsql-postgres-member docker/postgres-member && \
+		docker push gocardless/pgsql-postgres-member
 
 clean:
 	rm -vf $(PROG) $(PROG).linux_amd64 *.deb

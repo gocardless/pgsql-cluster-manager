@@ -1,7 +1,9 @@
 FROM ubuntu:trusty
 
 # Install basic tools required for installation
-RUN apt-get update && apt-get install -y curl
+RUN apt-get update && apt-get install -y curl wget && \
+  wget https://github.com/Yelp/dumb-init/releases/download/v1.2.0/dumb-init_1.2.0_amd64.deb && \
+  dpkg -i dumb-init_*.deb && rm dumb-init_*.deb
 
 # Install etcd from Google's repositories
 ENV ETCD_VERSION=v3.2.6
@@ -25,16 +27,18 @@ RUN sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release
     corosync \
     pacemaker
 
-# DO NOT CHANGE ANYTHING ABOVE THIS LINE
-
 RUN rm -rf /var/lib/postgresql/9.4/main
 ADD main.tar.gz /var/lib/postgresql/9.4/
-ADD postgres/postgresql.conf postgres/pg_hba.conf /etc/postgresql/9.4/main/
+COPY postgres/postgresql.conf postgres/pg_hba.conf /etc/postgresql/9.4/main/
 
-ADD pgbouncer/userlist.txt pgbouncer/pgbouncer.ini.template /etc/pgbouncer/
+COPY pgbouncer/userlist.txt pgbouncer/pgbouncer.ini.template /etc/pgbouncer/
 RUN cp -v /etc/pgbouncer/pgbouncer.ini.template /etc/pgbouncer/pgbouncer.ini
 
-ADD corosync/authkey /etc/corosync/
-ADD resource_agents/pgsql /usr/lib/ocf/resource.d/heartbeat/
+COPY corosync/authkey /etc/corosync/
+COPY resource_agents/pgsql /usr/lib/ocf/resource.d/heartbeat/
 
-ADD start-cluster.bash /bin/start-cluster
+COPY start-cluster.bash /bin/start-cluster
+
+EXPOSE 5432 6432 2379
+ENTRYPOINT ["/usr/bin/dumb-init", "--"]
+CMD ["bash", "-c", "while :; do sleep 1; done"]
