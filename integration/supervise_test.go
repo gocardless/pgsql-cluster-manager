@@ -26,6 +26,21 @@ func TestSupervise(t *testing.T) {
 
 	client := cluster.EtcdClient(t)
 
+	outputFile := func(path string) {
+		contents, err := cluster.Executor().CombinedOutput("cat", path)
+
+		if err == nil {
+			fmt.Printf("$ cat %s\n\n%s\n\n", path, string(contents))
+		} else {
+			fmt.Printf("failed to output file: %s\n", err.Error())
+		}
+	}
+
+	dumpLogs := func() {
+		outputFile("/var/log/start-cluster.log")
+		outputFile("/var/log/pgbouncer/pgbouncer.log")
+	}
+
 	openPGBouncer := func(container *docker.Container) (*sql.DB, error) {
 		host := cluster.Hostname(t)
 		port := container.NetworkSettings.Ports["6432/tcp"][0].HostPort
@@ -47,6 +62,7 @@ func TestSupervise(t *testing.T) {
 		for {
 			select {
 			case <-timeout:
+				dumpLogs()
 				require.Fail(t, fmt.Sprintf("timed out connecting to PGBouncer: %s", err.Error()))
 			default:
 				if conn, err := openPGBouncer(container); err == nil {
@@ -90,6 +106,7 @@ func TestSupervise(t *testing.T) {
 		for {
 			select {
 			case <-timeout:
+				dumpLogs()
 				require.Fail(t, "timed out waiting for node to become master")
 			default:
 				if master, _, _ := cluster.Roles(); master == node {
@@ -111,6 +128,7 @@ func TestSupervise(t *testing.T) {
 		for {
 			select {
 			case <-timeout:
+				dumpLogs()
 				require.Fail(t, "timed out waiting for PGBouncer to point at new master")
 			default:
 				if inetServerAddr(conn) == node.NetworkSettings.IPAddress {
