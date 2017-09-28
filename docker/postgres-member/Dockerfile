@@ -22,6 +22,6 @@ RUN chmod 700 /usr/lib/stonith/plugins/external/docker
 
 COPY start-cluster.bash /bin/start-cluster
 
-EXPOSE 5432 6432 2379
+EXPOSE 2379 5432 6432 8080
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
 CMD ["bash", "-c", "while :; do sleep 1; done"]

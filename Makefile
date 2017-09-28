@@ -6,7 +6,8 @@ BUILD_COMMAND=go build -ldflags "-X github.com/gocardless/pgsql-cluster-manager/
 .PHONY: build build-integration test $(PROG).linux_amd64 clean build-postgres-member-dockerfile publish-dockerfile publish-circleci-dockerfile
 
 build:
-	$(BUILD_COMMAND) -o $(PROG) *.go
+	go generate ./...
+	$(BUILD_COMMAND) -o $(PROG) main.go
 
 build-integration:
 	go test -tags integration -c github.com/gocardless/pgsql-cluster-manager/integration
