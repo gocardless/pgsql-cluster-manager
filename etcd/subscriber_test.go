@@ -44,6 +44,8 @@ func TestSubscriber(t *testing.T) {
 				if condition() {
 					return false
 				}
+
+				<-time.After(25 * time.Millisecond)
 			}
 		}
 	}
@@ -67,7 +69,7 @@ func TestSubscriber(t *testing.T) {
 	logger := logrus.StandardLogger()
 	logger.Level = logrus.DebugLevel
 
-	sub := NewSubscriber(client, WithLogger(logger), WithRetryInterval(time.Millisecond))
+	sub := NewSubscriber(client, WithLogger(logger), WithRetryInterval(25*time.Millisecond))
 	sub.AddHandler("/key", handler)
 
 	go sub.Start(ctx)

@@ -24,13 +24,32 @@ references:
         - v3-ruby2.4.1-Gemfile-{{ checksum "Gemfile.lock" }}
         - v3-ruby2.4.1-Gemfile
 
-jobs:
-  build:
+  docker_login: &docker_login
+    run:
+      name: Login to GoCardless DockerHub
+      command: docker login -u $DOCKER_USER -p $DOCKER_PASS
+
+  docker_build_image: &docker_build_image
+    working_directory: /home/circleci/go/src/github.com/gocardless/pgsql-cluster-manager
     docker:
       - image: gocardless/pgsql-cluster-manager-circleci:latest
+        auth:
+          username: $DOCKER_USER
+          password: $DOCKER_PASS
         environment:
           BUNDLE_PATH: vendor/bundle
-    working_directory: /home/circleci/go/src/github.com/gocardless/pgsql-cluster-manager
+
+jobs:
+  unit:
+    <<: *docker_build_image
+    steps:
+      - checkout
+      - run:
+          name: Unit test
+          command: make test
+
+  build-deb:
+    <<: *docker_build_image
     steps:
       - checkout
       - *restore_bundle
@@ -38,5 +57,36 @@ jobs:
       - *cache_bundle_for_lockfile
       - *cache_bundle
       - run:
-          name: Unit test and build deb
-          command: make test && make deb
+          name: Prepare .deb and integration tests
+          command: make deb build-integration
+      - persist_to_workspace:
+          root: /home/circleci/go/src/github.com/gocardless/pgsql-cluster-manager
+          paths: ['*.deb', 'integration.test']
+
+  integration:
+    machine: true
+    environment:
+      PGSQL_WORKSPACE: /home/circleci/project/workspace
+    steps:
+      - checkout
+      - attach_workspace:
+          at: workspace
+      - *docker_login
+      - run:
+          name: Pull gocardless/pgsql-cluster-manager base image
+          command: docker pull gocardless/pgsql-cluster-manager
+      - run:
+          name: Build postgres member image
+          command: make build-postgres-member-dockerfile
+      - run:
+          name: Run integration tests
+          command: workspace/integration.test -test.v
+
+workflows:
+  version: 2
+  build-integration:
+    jobs:
+      - unit
+      - build-deb
+      - integration:
+          requires: [build-deb]

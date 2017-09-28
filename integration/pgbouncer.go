@@ -41,6 +41,7 @@ func StartPGBouncer(t *testing.T, ctx context.Context) *PGBouncerProcess {
 			[]byte(fmt.Sprintf(`
 [databases]
 postgres = host={{.Host}} port=6432 pool_size=6
+logfile = /tmp/pgbouncer.log
 
 [pgbouncer]
 listen_port = 6432
@@ -88,17 +89,18 @@ ignore_startup_parameters = extra_float_digits`, workspace)),
 // successful, eventually timing out. This allows us to wait for PGBouncer to become ready
 // before proceeding.
 func pollPGBouncer(bouncer pgbouncer.PGBouncer) error {
-	timeout := time.After(5 * time.Second)
-	retry := time.Tick(100 * time.Millisecond)
+	timeout := time.After(10 * time.Second)
 
 	for {
 		select {
-		case <-retry:
-			if err := bouncer.Reload(); err == nil {
-				return nil
-			}
 		case <-timeout:
 			return errors.New("timed out waiting for PGBouncer to start")
+		default:
+			if err := bouncer.Reload(); err == nil {
+				return err
+			}
+
+			<-time.After(100 * time.Millisecond)
 		}
 	}
 }
