@@ -2,11 +2,13 @@ package command
 
 import (
 	"context"
+	"net/http"
 	"time"
 
 	"github.com/gocardless/pgsql-cluster-manager/etcd"
 	"github.com/gocardless/pgsql-cluster-manager/pacemaker"
 	"github.com/gocardless/pgsql-cluster-manager/pgbouncer"
+	"github.com/gocardless/pgsql-cluster-manager/routes"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -19,6 +21,7 @@ func NewSuperviseCommand() *cobra.Command {
 
 	sc.AddCommand(newSuperviseProxyCommand())
 	sc.AddCommand(newSuperviseClusterCommand())
+	sc.AddCommand(newSuperviseMigrationCommand())
 
 	return sc
 }
@@ -101,4 +104,63 @@ func superviseClusterCommandFunc(cmd *cobra.Command, args []string) {
 	// We should only update the key if it's changed- Updater provides idempotent updates
 	crmSub.AddHandler(etcdHostKey, &etcd.Updater{client})
 	crmSub.Start(ctx)
+}
+
+var migrationLongDescription = `
+Provides an API that issues migration commands, used to perform zero-downtime
+migrations.
+
+  POST /pause?timeout&expiry
+  Causes PGBouncer to pause on the host, cancelling the pause if we exceed
+  timeout and automatically resuming after expiry seconds.
+
+  POST /resume
+  Causes PGBouncer to immediately resume, removing any active pauses.
+
+  POST /migrate
+  Creates a migration from the current Postgres primary to the eligible sync
+  node. This is achieved by issuing a crm resource migrate.
+`
+
+func newSuperviseMigrationCommand() *cobra.Command {
+	sm := &cobra.Command{
+		Use:   "migration [options]",
+		Short: "Run on cluster node, provides migration API",
+		Long:  migrationLongDescription,
+		Run:   superviseMigrationCommandFunc,
+	}
+
+	flags := sm.Flags()
+
+	flags.String("bind-address", ":8080", "Bind API to this addr")
+	viper.BindPFlag("bind-address", flags.Lookup("bind-address"))
+
+	return sm
+}
+
+func superviseMigrationCommandFunc(cmd *cobra.Command, args []string) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	bouncer := PGBouncerOrExit()
+	cib := pacemaker.NewCib()
+	bindAddr := viper.GetString("bind-address")
+
+	HandleQuitSignal("cleaning context and exiting...", cancel)
+
+	server := &http.Server{
+		Addr: bindAddr,
+		Handler: routes.Route(
+			routes.WithLogger(logger),
+			routes.WithPGBouncer(bouncer),
+			routes.WithCib(cib),
+		),
+	}
+
+	go func() { <-ctx.Done(); server.Shutdown(context.Background()) }()
+
+	logger.Infof("Starting server, bound to %s", bindAddr)
+	if err := server.ListenAndServe(); err != nil {
+		logger.WithError(err).Error("Server failed with error")
+	}
 }
