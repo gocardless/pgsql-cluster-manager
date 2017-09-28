@@ -17,6 +17,6 @@ COPY resource_agents/pgsql /usr/lib/ocf/resource.d/heartbeat/
 
 COPY start-cluster.bash /bin/start-cluster
 
-EXPOSE 5432 6432 2379
+EXPOSE 2379 5432 6432 8080
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
 CMD ["bash", "-c", "while :; do sleep 1; done"]

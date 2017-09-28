@@ -92,3 +92,14 @@ func (c Cib) Migrate(to string) error {
 
 	return err
 }
+
+// Unmigrate will remove constraints previously created by migrate
+func (c Cib) Unmigrate() error {
+	_, err := c.CombinedOutput("crm", "resource", "unmigrate", "msPostgresql")
+
+	if err != nil {
+		return errors.Wrap(err, "failed to execute crm resource unmigrate")
+	}
+
+	return err
+}
