@@ -18,6 +18,7 @@ type PGBouncer interface {
 	Config() (map[string]string, error)
 	GenerateConfig(string) error
 	Pause() error
+	Resume() error
 	Reload() error
 	ShowDatabases() ([]Database, error)
 	PsqlExecutor
@@ -181,6 +182,15 @@ func (b pgBouncer) Pause() error {
 		}
 
 		return errors.Wrap(err, "failed to pause PGBouncer")
+	}
+
+	return nil
+}
+
+// Resume will remove any applied pauses to PGBouncer.
+func (b pgBouncer) Resume() error {
+	if _, err := b.PsqlExecutor.Query(`RESUME;`); err != nil {
+		return errors.Wrap(err, "failed to resume PGBouncer")
 	}
 
 	return nil

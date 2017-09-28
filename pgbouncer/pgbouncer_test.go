@@ -159,3 +159,40 @@ func TestReload(t *testing.T) {
 		})
 	}
 }
+
+func TestResume(t *testing.T) {
+	testCases := []struct {
+		name        string
+		psqlError   error                   // error returned from PsqlExecutor
+		assertError func(*testing.T, error) // assertions on the Resume() error
+	}{
+		{
+			"when resume is successful",
+			nil,
+			func(t *testing.T, err error) {
+				assert.Nil(t, err, "expected Resume to return no error")
+			},
+		},
+		{
+			"when reload is successful",
+			errors.New("timeout"),
+			func(t *testing.T, err error) {
+				assert.Equal(t, "failed to resume PGBouncer: timeout", err.Error())
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var noParams []interface{}
+			psql := new(fakePsqlExecutor)
+			bouncer := pgBouncer{PsqlExecutor: psql}
+
+			psql.On("Query", "RESUME;", noParams).Return(&sql.Rows{}, tc.psqlError)
+			err := bouncer.Resume()
+
+			psql.AssertExpectations(t)
+			tc.assertError(t, err)
+		})
+	}
+}
