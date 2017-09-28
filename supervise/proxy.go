@@ -2,11 +2,12 @@ package supervise
 
 import (
 	"context"
+	"time"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/coreos/etcd/clientv3"
 	"github.com/gocardless/pgsql-cluster-manager/etcd"
 	"github.com/gocardless/pgsql-cluster-manager/pgbouncer"
-	"github.com/Sirupsen/logrus"
 )
 
 func Proxy(
@@ -17,6 +18,6 @@ func Proxy(
 	etcdHostKey string, // find the Postgres host at this key
 ) {
 	etcd.NewSubscriber(client, etcd.WithLogger(logger)).
-		AddHandler(etcdHostKey, &pgbouncer.HostChanger{bouncer}).
+		AddHandler(etcdHostKey, &pgbouncer.HostChanger{bouncer, 5 * time.Second}).
 		Start(ctx)
 }

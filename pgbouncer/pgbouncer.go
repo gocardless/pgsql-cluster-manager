@@ -3,12 +3,12 @@ package pgbouncer
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"database/sql"
 	"html/template"
 	"io/ioutil"
 	"os"
 	"regexp"
-	"time"
 
 	"github.com/pkg/errors"
 )
@@ -17,10 +17,10 @@ import (
 type PGBouncer interface {
 	Config() (map[string]string, error)
 	GenerateConfig(string) error
-	Pause() error
-	Resume() error
-	Reload() error
-	ShowDatabases() ([]Database, error)
+	Pause(context.Context) error
+	Resume(context.Context) error
+	Reload(context.Context) error
+	ShowDatabases(context.Context) ([]Database, error)
 	PsqlExecutor
 }
 
@@ -33,13 +33,13 @@ type pgBouncer struct {
 }
 
 // NewPGBouncer returns a PGBouncer configured around the given configFile and template
-func NewPGBouncer(configFile, configFileTemplate string, psqlTimeout time.Duration) PGBouncer {
+func NewPGBouncer(configFile, configFileTemplate string) PGBouncer {
 	bouncer := pgBouncer{
 		ConfigFile:         configFile,
 		ConfigFileTemplate: configFileTemplate,
 	}
 
-	bouncer.PsqlExecutor = NewPGBouncerExecutor(&bouncer, psqlTimeout)
+	bouncer.PsqlExecutor = NewPGBouncerExecutor(&bouncer)
 
 	return &bouncer
 }
@@ -113,9 +113,9 @@ type Database struct {
 // columns about database host details. This is quite cumbersome to write, due to the
 // inability to query select fields for database information, and the lack of guarantees
 // about the ordering of the columns returned from the command.
-func (b pgBouncer) ShowDatabases() ([]Database, error) {
+func (b pgBouncer) ShowDatabases(ctx context.Context) ([]Database, error) {
 	databases := make([]Database, 0)
-	rows, err := b.PsqlExecutor.Query(`SHOW DATABASES;`)
+	rows, err := b.PsqlExecutor.QueryContext(ctx, `SHOW DATABASES;`)
 
 	if err != nil {
 		return databases, err
@@ -172,8 +172,8 @@ const AlreadyPausedError string = "08P01"
 // Pause causes PGBouncer to buffer incoming queries while waiting for those currently
 // processing to finish executing. The supplied timeout is applied to the Postgres
 // connection.
-func (b pgBouncer) Pause() error {
-	if _, err := b.PsqlExecutor.Query(`PAUSE;`); err != nil {
+func (b pgBouncer) Pause(ctx context.Context) error {
+	if _, err := b.PsqlExecutor.QueryContext(ctx, `PAUSE;`); err != nil {
 		if ferr, ok := err.(fieldError); ok {
 			// We get this when PGBouncer tells us we're already paused
 			if ferr.Field('C') == AlreadyPausedError {
@@ -188,8 +188,8 @@ func (b pgBouncer) Pause() error {
 }
 
 // Resume will remove any applied pauses to PGBouncer.
-func (b pgBouncer) Resume() error {
-	if _, err := b.PsqlExecutor.Query(`RESUME;`); err != nil {
+func (b pgBouncer) Resume(ctx context.Context) error {
+	if _, err := b.PsqlExecutor.QueryContext(ctx, `RESUME;`); err != nil {
 		return errors.Wrap(err, "failed to resume PGBouncer")
 	}
 
@@ -197,8 +197,8 @@ func (b pgBouncer) Resume() error {
 }
 
 // Reload will cause PGBouncer to reload configuration and live apply setting changes
-func (b pgBouncer) Reload() error {
-	if _, err := b.PsqlExecutor.Query(`RELOAD;`); err != nil {
+func (b pgBouncer) Reload(ctx context.Context) error {
+	if _, err := b.PsqlExecutor.QueryContext(ctx, `RELOAD;`); err != nil {
 		return errors.Wrap(err, "failed to reload PGBouncer")
 	}
 

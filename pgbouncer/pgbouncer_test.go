@@ -1,6 +1,7 @@
 package pgbouncer
 
 import (
+	"context"
 	"database/sql"
 	"io/ioutil"
 	"os"
@@ -26,8 +27,8 @@ func (e fakeFieldError) Field(f byte) string {
 
 type fakePsqlExecutor struct{ mock.Mock }
 
-func (e fakePsqlExecutor) Query(query string, params ...interface{}) (*sql.Rows, error) {
-	args := e.Called(query, params)
+func (e fakePsqlExecutor) QueryContext(ctx context.Context, query string, params ...interface{}) (*sql.Rows, error) {
+	args := e.Called(ctx, query, params)
 	return args.Get(0).(*sql.Rows), args.Error(1)
 }
 
@@ -75,7 +76,7 @@ func TestGenerateConfig(t *testing.T) {
 func TestPause(t *testing.T) {
 	testCases := []struct {
 		name        string
-		psqlError   error                   // error returned from PsqlExecutor when Query'ing PAUSE
+		psqlError   error                   // error returned from PsqlExecutor
 		assertError func(*testing.T, error) // assertions on the Pause() error
 	}{
 		{
@@ -114,8 +115,10 @@ func TestPause(t *testing.T) {
 			psql := new(fakePsqlExecutor)
 			bouncer := pgBouncer{PsqlExecutor: psql}
 
-			psql.On("Query", "PAUSE;", noParams).Return(&sql.Rows{}, tc.psqlError)
-			err := bouncer.Pause()
+			psql.
+				On("QueryContext", context.TODO(), "PAUSE;", noParams).
+				Return(&sql.Rows{}, tc.psqlError)
+			err := bouncer.Pause(context.TODO())
 
 			psql.AssertExpectations(t)
 			tc.assertError(t, err)
@@ -126,7 +129,7 @@ func TestPause(t *testing.T) {
 func TestReload(t *testing.T) {
 	testCases := []struct {
 		name        string
-		psqlError   error                   // error returned from PsqlExecutor when Query'ing RELOAD
+		psqlError   error                   // error returned from PsqlExecutor
 		assertError func(*testing.T, error) // assertions on the Reload() error
 	}{
 		{
@@ -151,8 +154,10 @@ func TestReload(t *testing.T) {
 			psql := new(fakePsqlExecutor)
 			bouncer := pgBouncer{PsqlExecutor: psql}
 
-			psql.On("Query", "RELOAD;", noParams).Return(&sql.Rows{}, tc.psqlError)
-			err := bouncer.Reload()
+			psql.
+				On("QueryContext", context.TODO(), "RELOAD;", noParams).
+				Return(&sql.Rows{}, tc.psqlError)
+			err := bouncer.Reload(context.TODO())
 
 			psql.AssertExpectations(t)
 			tc.assertError(t, err)
@@ -188,8 +193,10 @@ func TestResume(t *testing.T) {
 			psql := new(fakePsqlExecutor)
 			bouncer := pgBouncer{PsqlExecutor: psql}
 
-			psql.On("Query", "RESUME;", noParams).Return(&sql.Rows{}, tc.psqlError)
-			err := bouncer.Resume()
+			psql.
+				On("QueryContext", context.TODO(), "RESUME;", noParams).
+				Return(&sql.Rows{}, tc.psqlError)
+			err := bouncer.Resume(context.TODO())
 
 			psql.AssertExpectations(t)
 			tc.assertError(t, err)

@@ -2,7 +2,6 @@ package command
 
 import (
 	"context"
-	"time"
 
 	"github.com/gocardless/pgsql-cluster-manager/pacemaker"
 	"github.com/gocardless/pgsql-cluster-manager/supervise"
@@ -35,12 +34,10 @@ func newSuperviseProxyCommand() *cobra.Command {
 
 	flags.String("pgbouncer-config-file", "/etc/pgbouncer/pgbouncer.ini", "Path to PGBouncer config file")
 	flags.String("pgbouncer-config-template-file", "/etc/pgbouncer/pgbouncer.ini.template", "Path to PGBouncer config template file")
-	flags.Duration("pgbouncer-timeout", time.Second, "Timeout when executing queries against PGBouncer")
 	flags.String("postgres-master-etcd-key", "/master", "etcd key that stores current Postgres primary")
 
 	viper.BindPFlag("pgbouncer-config-file", flags.Lookup("pgbouncer-config-file"))
 	viper.BindPFlag("pgbouncer-config-template-file", flags.Lookup("pgbouncer-config-template-file"))
-	viper.BindPFlag("pgbouncer-timeout", flags.Lookup("pgbouncer-timeout"))
 	viper.BindPFlag("postgres-master-etcd-key", flags.Lookup("postgres-master-etcd-key"))
 
 	return sp

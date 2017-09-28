@@ -6,10 +6,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/clientv3/namespace"
 	"github.com/gocardless/pgsql-cluster-manager/pgbouncer"
-	"github.com/Sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"golang.org/x/crypto/ssh/terminal"
@@ -97,7 +97,6 @@ func PGBouncerOrExit() pgbouncer.PGBouncer {
 	return pgbouncer.NewPGBouncer(
 		viper.GetString("pgbouncer-config-file"),
 		viper.GetString("pgbouncer-config-template-file"),
-		viper.GetDuration("pgbouncer-timeout"),
 	)
 }
 

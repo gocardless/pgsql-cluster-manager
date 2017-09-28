@@ -28,7 +28,7 @@ func TestHostChanger(t *testing.T) {
 	logger.Level = logrus.DebugLevel
 
 	showDatabase := func(name string) *pgbouncer.Database {
-		databases, err := bouncer.ShowDatabases()
+		databases, err := bouncer.ShowDatabases(context.Background())
 		if err != nil {
 			require.FailNow(t, "failed to query pgbouncer: %s", err.Error())
 		}
@@ -44,7 +44,7 @@ func TestHostChanger(t *testing.T) {
 
 	t.Run("changes PGBouncer database host in response to etcd key changes", func(t *testing.T) {
 		go etcd.NewSubscriber(etcdClient, etcd.WithLogger(logger)).
-			AddHandler("/master", pgbouncer.HostChanger{bouncer}).
+			AddHandler("/master", pgbouncer.HostChanger{bouncer, time.Second}).
 			Start(ctx)
 
 		database := showDatabase("postgres")

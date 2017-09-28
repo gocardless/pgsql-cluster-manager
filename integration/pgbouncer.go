@@ -71,7 +71,6 @@ ignore_startup_parameters = extra_float_digits`, workspace)),
 	bouncer := pgbouncer.NewPGBouncer(
 		filepath.Join(workspace, "pgbouncer.ini"),
 		filepath.Join(workspace, "pgbouncer.ini.template"),
-		time.Second,
 	)
 
 	if err = pollPGBouncer(bouncer); err != nil {
@@ -96,7 +95,7 @@ func pollPGBouncer(bouncer pgbouncer.PGBouncer) error {
 		case <-timeout:
 			return errors.New("timed out waiting for PGBouncer to start")
 		default:
-			if err := bouncer.Reload(); err == nil {
+			if err := bouncer.Reload(context.Background()); err == nil {
 				return err
 			}
 

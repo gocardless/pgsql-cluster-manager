@@ -1,9 +1,9 @@
 package pgbouncer
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
-	"time"
 
 	_ "github.com/lib/pq"
 	"github.com/pkg/errors"
@@ -11,28 +11,27 @@ import (
 
 // PsqlExecutor implements the execution of SQL queries against a Postgres connection
 type PsqlExecutor interface {
-	Query(string, ...interface{}) (*sql.Rows, error)
+	QueryContext(context.Context, string, ...interface{}) (*sql.Rows, error)
 }
 
 type pgbouncerExecutor struct {
 	PGBouncer
-	timeout time.Duration
 }
 
-func NewPGBouncerExecutor(bouncer PGBouncer, timeout time.Duration) PsqlExecutor {
-	return &pgbouncerExecutor{bouncer, timeout}
+func NewPGBouncerExecutor(bouncer PGBouncer) PsqlExecutor {
+	return &pgbouncerExecutor{bouncer}
 }
 
 // Query generates a connection to PGBouncer's Postgres database and executes the given
 // command
-func (e pgbouncerExecutor) Query(query string, params ...interface{}) (*sql.Rows, error) {
+func (e pgbouncerExecutor) QueryContext(ctx context.Context, query string, params ...interface{}) (*sql.Rows, error) {
 	psql, err := e.psql()
 
 	if err != nil {
 		return nil, err
 	}
 
-	return psql.Query(query, params...)
+	return psql.QueryContext(ctx, query, params...)
 }
 
 func (e pgbouncerExecutor) psql() (*sql.DB, error) {
