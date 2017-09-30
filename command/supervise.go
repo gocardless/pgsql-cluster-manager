@@ -2,9 +2,11 @@ package command
 
 import (
 	"context"
+	"time"
 
+	"github.com/gocardless/pgsql-cluster-manager/etcd"
 	"github.com/gocardless/pgsql-cluster-manager/pacemaker"
-	"github.com/gocardless/pgsql-cluster-manager/supervise"
+	"github.com/gocardless/pgsql-cluster-manager/pgbouncer"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -54,11 +56,9 @@ func superviseProxyCommandFunc(cmd *cobra.Command, args []string) {
 
 	etcdHostKey := viper.GetString("postgres-master-etcd-key")
 
-	supervise.Proxy(
-		ctx, logger,
-		client, bouncer,
-		etcdHostKey,
-	)
+	etcd.NewSubscriber(client, etcd.WithLogger(logger)).
+		AddHandler(etcdHostKey, &pgbouncer.HostChanger{bouncer, 5 * time.Second}).
+		Start(ctx)
 }
 
 func newSuperviseClusterCommand() *cobra.Command {
@@ -92,11 +92,13 @@ func superviseClusterCommandFunc(cmd *cobra.Command, args []string) {
 	etcdHostKey := viper.GetString("postgres-master-etcd-key")
 	masterCrmXPath := viper.GetString("postgres-master-crm-xpath")
 
-	supervise.Cluster(
-		ctx,
-		logger,
-		client,
-		etcdHostKey,
-		masterCrmXPath,
+	// Watch for changes to master node, calling the handler registered on the host key
+	crmSub := pacemaker.NewSubscriber(
+		pacemaker.WatchNode(etcdHostKey, masterCrmXPath, "uname"),
+		pacemaker.WithLogger(logger),
 	)
+
+	// We should only update the key if it's changed- Updater provides idempotent updates
+	crmSub.AddHandler(etcdHostKey, &etcd.Updater{client})
+	crmSub.Start(ctx)
 }
