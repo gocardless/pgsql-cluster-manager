@@ -1,10 +1,11 @@
 package pacemaker
 
 import (
-	"context"
-	"errors"
 	"os/exec"
 	"time"
+
+	"github.com/pkg/errors"
+	"golang.org/x/net/context"
 
 	"github.com/beevik/etree"
 )
@@ -15,8 +16,8 @@ var (
 	AsyncXPath  = "//node/instance_attributes/nvpair[@value='STREAMING|POTENTIAL']/../.."
 )
 
-// Cib wraps the cibadmin executable provided by pacemaker, that queries the cib and
-// outputs information on node roles.
+// Cib wraps the executables provided by pacemaker, providing querying of the cib as well
+// as running commands against crm.
 type Cib struct {
 	executor
 }
@@ -79,4 +80,15 @@ func (c Cib) Get(xpaths ...string) ([]*etree.Element, error) {
 	}
 
 	return nodes, nil
+}
+
+// Migrate will issue a resource migration of msPostgresql to the given node
+func (c Cib) Migrate(to string) error {
+	_, err := c.CombinedOutput("crm", "resource", "migrate", "msPostgresql", to)
+
+	if err != nil {
+		return errors.Wrap(err, "failed to execute crm migration")
+	}
+
+	return err
 }

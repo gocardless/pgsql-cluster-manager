@@ -69,3 +69,38 @@ func TestGet(t *testing.T) {
 		})
 	}
 }
+
+func TestMigrate(t *testing.T) {
+	testCases := []struct {
+		name    string
+		execErr error // returned from executor
+		err     error // returned from Migrate
+	}{
+		{
+			"when migrate returns no error",
+			nil,
+			nil,
+		},
+		{
+			"when migrate returns an error",
+			errors.New("exit 255"),
+			errors.New("failed to execute crm migration: exit 255"),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			executor := new(fakeExecutor)
+			executor.On("CombinedOutput", "crm", []string{
+				"resource", "migrate", "msPostgresql", "pg03",
+			}).Return([]byte(""), tc.execErr)
+
+			err := Cib{executor}.Migrate("pg03")
+
+			if err != nil {
+				assert.EqualValues(t, tc.err.Error(), err.Error())
+			}
+			executor.AssertExpectations(t)
+		})
+	}
+}
