@@ -12,6 +12,7 @@ import (
 // PsqlExecutor implements the execution of SQL queries against a Postgres connection
 type PsqlExecutor interface {
 	QueryContext(context.Context, string, ...interface{}) (*sql.Rows, error)
+	ExecContext(context.Context, string, ...interface{}) (sql.Result, error)
 }
 
 type pgbouncerExecutor struct {
@@ -22,8 +23,6 @@ func NewPGBouncerExecutor(bouncer PGBouncer) PsqlExecutor {
 	return &pgbouncerExecutor{bouncer}
 }
 
-// Query generates a connection to PGBouncer's Postgres database and executes the given
-// command
 func (e pgbouncerExecutor) QueryContext(ctx context.Context, query string, params ...interface{}) (*sql.Rows, error) {
 	psql, err := e.psql()
 
@@ -32,6 +31,16 @@ func (e pgbouncerExecutor) QueryContext(ctx context.Context, query string, param
 	}
 
 	return psql.QueryContext(ctx, query, params...)
+}
+
+func (e pgbouncerExecutor) ExecContext(ctx context.Context, query string, params ...interface{}) (sql.Result, error) {
+	psql, err := e.psql()
+
+	if err != nil {
+		return nil, err
+	}
+
+	return psql.ExecContext(ctx, query, params...)
 }
 
 func (e pgbouncerExecutor) psql() (*sql.DB, error) {
@@ -65,7 +74,7 @@ func (e pgbouncerExecutor) connectionString() (string, error) {
 	}
 
 	return fmt.Sprintf(
-		"user=pgbouncer dbname=pgbouncer connect_timeout=1 host=%s port=%s",
+		"user=postgres dbname=pgbouncer connect_timeout=1 host=%s port=%s",
 		socketDir,
 		port,
 	), err

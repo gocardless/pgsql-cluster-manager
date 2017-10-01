@@ -10,6 +10,7 @@ import (
 	"os"
 	"regexp"
 
+	"github.com/lib/pq"
 	"github.com/pkg/errors"
 )
 
@@ -161,23 +162,19 @@ func (b pgBouncer) ShowDatabases(ctx context.Context) ([]Database, error) {
 	return databases, rows.Err()
 }
 
-type fieldError interface {
-	Field(byte) string
-}
-
-// AlreadyPausedError is the field returned as the error code when PGBouncer is already
-// paused, and you issue a PAUSE;
-const AlreadyPausedError string = "08P01"
+// These error codes are returned whenever PGBouncer is asked to PAUSE/RESUME, but is
+// already in the given state.
+const AlreadyPausedError = "08P01"
+const AlreadyResumedError = AlreadyPausedError
 
 // Pause causes PGBouncer to buffer incoming queries while waiting for those currently
 // processing to finish executing. The supplied timeout is applied to the Postgres
 // connection.
 func (b pgBouncer) Pause(ctx context.Context) error {
-	if _, err := b.PsqlExecutor.QueryContext(ctx, `PAUSE;`); err != nil {
-		if ferr, ok := err.(fieldError); ok {
-			// We get this when PGBouncer tells us we're already paused
-			if ferr.Field('C') == AlreadyPausedError {
-				return nil // ignore the error, as the pause was not required
+	if _, err := b.PsqlExecutor.ExecContext(ctx, `PAUSE;`); err != nil {
+		if err, ok := err.(*pq.Error); ok {
+			if string(err.Code) == AlreadyPausedError {
+				return nil
 			}
 		}
 
@@ -187,9 +184,15 @@ func (b pgBouncer) Pause(ctx context.Context) error {
 	return nil
 }
 
-// Resume will remove any applied pauses to PGBouncer.
+// Resume will remove any applied pauses to PGBouncer
 func (b pgBouncer) Resume(ctx context.Context) error {
-	if _, err := b.PsqlExecutor.QueryContext(ctx, `RESUME;`); err != nil {
+	if _, err := b.PsqlExecutor.ExecContext(ctx, `RESUME;`); err != nil {
+		if err, ok := err.(*pq.Error); ok {
+			if string(err.Code) == AlreadyResumedError {
+				return nil
+			}
+		}
+
 		return errors.Wrap(err, "failed to resume PGBouncer")
 	}
 
@@ -198,7 +201,7 @@ func (b pgBouncer) Resume(ctx context.Context) error {
 
 // Reload will cause PGBouncer to reload configuration and live apply setting changes
 func (b pgBouncer) Reload(ctx context.Context) error {
-	if _, err := b.PsqlExecutor.QueryContext(ctx, `RELOAD;`); err != nil {
+	if _, err := b.PsqlExecutor.ExecContext(ctx, `RELOAD;`); err != nil {
 		return errors.Wrap(err, "failed to reload PGBouncer")
 	}
 

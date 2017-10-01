@@ -7,29 +7,35 @@ import (
 	"os"
 	"testing"
 
+	"github.com/lib/pq"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
-type fakeFieldError struct{ mock.Mock }
-
-func (e fakeFieldError) Error() string {
-	args := e.Called()
-	return args.String(0)
-}
-
-func (e fakeFieldError) Field(f byte) string {
-	args := e.Called(f)
-	return args.String(0)
-}
-
 type fakePsqlExecutor struct{ mock.Mock }
 
 func (e fakePsqlExecutor) QueryContext(ctx context.Context, query string, params ...interface{}) (*sql.Rows, error) {
 	args := e.Called(ctx, query, params)
 	return args.Get(0).(*sql.Rows), args.Error(1)
+}
+
+func (e fakePsqlExecutor) ExecContext(ctx context.Context, query string, params ...interface{}) (sql.Result, error) {
+	args := e.Called(ctx, query, params)
+	return args.Get(0).(sql.Result), args.Error(1)
+}
+
+type fakeSqlResult struct{ mock.Mock }
+
+func (r fakeSqlResult) LastInsertId() (int64, error) {
+	args := r.Called()
+	return args.Get(0).(int64), args.Error(1)
+}
+
+func (r fakeSqlResult) RowsAffected() (int64, error) {
+	args := r.Called()
+	return args.Get(0).(int64), args.Error(1)
 }
 
 func makeTempFile(t *testing.T, prefix string) *os.File {
@@ -97,12 +103,7 @@ func TestPause(t *testing.T) {
 		// the Pause command will succeed in this case, as it has no work to do.
 		{
 			"when already paused",
-			func() error {
-				fieldError := new(fakeFieldError)
-				fieldError.On("Field", byte('C')).Return("08P01")
-
-				return fieldError
-			}(),
+			&pq.Error{Code: "08P01"},
 			func(t *testing.T, err error) {
 				assert.Nil(t, err, "expected Pause to return no error")
 			},
@@ -116,8 +117,8 @@ func TestPause(t *testing.T) {
 			bouncer := pgBouncer{PsqlExecutor: psql}
 
 			psql.
-				On("QueryContext", context.TODO(), "PAUSE;", noParams).
-				Return(&sql.Rows{}, tc.psqlError)
+				On("ExecContext", context.TODO(), "PAUSE;", noParams).
+				Return(fakeSqlResult{}, tc.psqlError)
 			err := bouncer.Pause(context.TODO())
 
 			psql.AssertExpectations(t)
@@ -155,8 +156,8 @@ func TestReload(t *testing.T) {
 			bouncer := pgBouncer{PsqlExecutor: psql}
 
 			psql.
-				On("QueryContext", context.TODO(), "RELOAD;", noParams).
-				Return(&sql.Rows{}, tc.psqlError)
+				On("ExecContext", context.TODO(), "RELOAD;", noParams).
+				Return(fakeSqlResult{}, tc.psqlError)
 			err := bouncer.Reload(context.TODO())
 
 			psql.AssertExpectations(t)
@@ -185,6 +186,13 @@ func TestResume(t *testing.T) {
 				assert.Equal(t, "failed to resume PGBouncer: timeout", err.Error())
 			},
 		},
+		{
+			"when already resumed",
+			&pq.Error{Code: "08P01"},
+			func(t *testing.T, err error) {
+				assert.Nil(t, err, "expected Resume to return no error")
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -194,8 +202,8 @@ func TestResume(t *testing.T) {
 			bouncer := pgBouncer{PsqlExecutor: psql}
 
 			psql.
-				On("QueryContext", context.TODO(), "RESUME;", noParams).
-				Return(&sql.Rows{}, tc.psqlError)
+				On("ExecContext", context.TODO(), "RESUME;", noParams).
+				Return(fakeSqlResult{}, tc.psqlError)
 			err := bouncer.Resume(context.TODO())
 
 			psql.AssertExpectations(t)
