@@ -16,7 +16,7 @@ test:
 
 export PGSQL_WORKSPACE=$(shell pwd)
 test-integration: build-postgres-member-dockerfile
-	[ -f *.deb ] || (echo "Requires deb package!" && exit 255)
+	[ -f *.deb ] || (echo "Requires deb package! Run `make deb` to build it." && exit 255)
 	go test -tags integration -v github.com/gocardless/pgsql-cluster-manager/integration
 
 deb: $(PROG).linux_amd64

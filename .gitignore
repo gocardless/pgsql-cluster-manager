@@ -2,3 +2,4 @@ pgsql-cluster-manager
 pgsql-cluster-manager.linux_amd64
 *.deb
 *.test
+.bundle
