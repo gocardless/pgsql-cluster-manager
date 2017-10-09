@@ -44,6 +44,7 @@ func init() {
 	viper.BindPFlag("log-level", flags.Lookup("log-level"))
 
 	PgsqlCommand.AddCommand(NewSuperviseCommand())
+	PgsqlCommand.AddCommand(NewMigrateCommand())
 	PgsqlCommand.AddCommand(NewVersionCommand())
 
 	cobra.OnInitialize(ConfigureLogger)
