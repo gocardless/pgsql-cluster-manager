@@ -168,7 +168,7 @@ func (s *migrationServer) execAndLog(opName string, op func() error) error {
 	s.logger.Infof("Running %s", opName)
 
 	if err := op(); err != nil {
-		s.logger.WithError(err).Error("Failed %s", opName)
+		s.logger.WithError(err).Errorf("Failed %s", opName)
 		return err
 	}
 
