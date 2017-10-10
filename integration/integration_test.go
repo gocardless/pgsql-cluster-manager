@@ -39,7 +39,7 @@ func TestIntegration(t *testing.T) {
 
 	dumpLogs := func() {
 		outputFile("/var/log/start-cluster.log")
-		outputFile("/var/log/pgbouncer/pgbouncer.log")
+		outputFile("/var/log/postgresql/pgbouncer.log")
 	}
 
 	openPGBouncer := func(container *docker.Container) (*sql.DB, error) {
@@ -119,7 +119,7 @@ func TestIntegration(t *testing.T) {
 
 	waitUntilMaster := func(node *docker.Container) {
 		defer func(begin time.Time) {
-			fmt.Printf("master was migrated in %.2fs\n", time.Since(begin).Seconds())
+			fmt.Printf("became master after %.2fs\n", time.Since(begin).Seconds())
 		}(time.Now())
 
 		timeout := time.After(time.Minute)
