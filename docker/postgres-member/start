@@ -1,5 +1,14 @@
 #!/usr/bin/env bash
 
+set -eu
+
+function cleanup() {
+  docker kill pg01 pg02 pg03 magenta carmen >/dev/null 2>&1
+  docker rm -f pg01 pg02 pg03 magenta carmen >/dev/null 2>&1
+}
+
+cleanup || echo "cleaned up"
+
 function run-container() {
   local id
   id=$(
@@ -9,23 +18,150 @@ function run-container() {
     --privileged \
     --detach \
     --publish-all \
-    --volume "$(git rev-parse --show-toplevel):/pgsql-cluster-manager" \
+    --volume "${HOSTS}:/etc/hosts" \
     gocardless/postgres-member \
     sh -c "while :; do sleep 1; done")
-  docker inspect "$id" | jq -r '.[0].NetworkSettings.IPAddress'
+  ip=$(docker inspect "$id" | jq -r '.[0].NetworkSettings.IPAddress')
+
+  for script in scripts/*.bash; do
+    docker cp "$script" "${id}:/bin/"
+  done
+  echo "$ip $1" >> "$HOSTS"
+  echo "$ip"
 }
 
-docker rm pg01 pg02 pg03
+function start-postgres() {
+  cat <<EOF | write-file "$1" /etc/postgresql/9.4/main/postgresql.conf
+include_if_exists '/var/lib/postgresql/9.4/tmp/rep_mode.conf'
+EOF
 
+  docker exec -t "$1" sudo -u postgres mkdir /var/lib/postgresql/9.4/tmp
+  docker exec -t "$1" sudo -u postgres /usr/lib/postgresql/9.4/bin/pg_ctl \
+    -o '-c config_file=/etc/postgresql/9.4/main/postgresql.conf -p 5432' \
+    -D /var/lib/postgresql/9.4/main \
+    -l /var/log/postgresql/postgresql-crm.log start
+}
+
+function reload-postgres() {
+  docker exec -t "$1" sudo -u postgres psql -c "select pg_reload_conf()"
+}
+
+# write-file <container> <filepath>
+function write-file() {
+  docker exec -i "$1" bash -c "cat >> $2"
+}
+
+# create-recovery-conf <container> <primary_conn_ip>
+function create-recovery-conf() {
+  cat <<EOF | write-file "$1" /var/lib/postgresql/9.4/main/recovery.conf
+standby_mode = 'on'
+primary_conninfo = 'host=$2 port=5432 user=postgres application_name=$1 keepalives_idle=60 keepalives_interval=5 keepalives_count=5'
+restore_command = 'exit 0'
+recovery_target_timeline = 'latest'
+EOF
+}
+
+# create-rep-mode <container> <standby-names>
+function create-rep-mode() {
+  cat <<EOF | write-file "$1" /var/lib/postgresql/9.4/tmp/rep_mode.conf
+synchronous_standby_names = '$2'
+EOF
+}
+
+# stat-replication <container>
+function stat-replication() {
+  docker exec -t "$1" sudo -u postgres psql \
+    -c "select application_name,state,sync_state,sync_priority from pg_stat_replication;"
+}
+
+# docker-proxy-ip <container> <port>
+function docker-proxy-ip() {
+  docker inspect "$1" | jq -r '.[0].NetworkSettings.Ports."'"$2"'/tcp"[0].HostPort'
+}
+
+# docker-psql <container> <args...>
+function docker-psql() {
+  psql -h "$DOCKER_IP" -p "$(docker-proxy-ip "$1" 5432)" "${@}"
+}
+
+# start-pacemaker <container> <cluster-node>...
+function start-pacemaker() {
+  docker exec -t "$1" /bin/start_pacemaker.bash "$2" "$3" "$4"
+}
+
+HOSTS=$(mktemp "$(pwd)/tmp/hosts.XXXXXX")
+chmod 666 "$HOSTS"
+echo """
+127.0.0.1       localhost
+::1     localhost ip6-localhost ip6-loopback
+fe00::0 ip6-localnet
+ff00::0 ip6-mcastprefix
+ff02::1 ip6-allnodes
+ff02::2 ip6-allrouters
+""" >> "$HOSTS"
+
+MAGENTA=$(run-container magenta)
+CARMEN=$(run-container carmen)
 PG01=$(run-container pg01)
 PG02=$(run-container pg02)
 PG03=$(run-container pg03)
 
-docker exec --detach pg01 /bin/start-cluster "$PG01" "$PG02" "$PG03"
-docker exec --detach pg02 /bin/start-cluster "$PG01" "$PG02" "$PG03"
-docker exec --detach pg03 /bin/start-cluster "$PG01" "$PG02" "$PG03"
+start-postgres magenta # standalone, single primary
 
-docker exec -it pg01 /bin/bash
+create-recovery-conf carmen "$MAGENTA" # prepare for replication
+start-postgres carmen # start replicating
 
-docker kill pg01 pg02 pg03
-docker rm pg01 pg02 pg03
+create-rep-mode magenta 'carmen' # mark carmen as a sync standby
+reload-postgres magenta # activate the standby config
+
+create-recovery-conf pg03 "$MAGENTA" # prepare for replication
+start-postgres pg03
+
+create-rep-mode magenta 'carmen,pg03'
+reload-postgres magenta
+
+# THIS IS PRESENT SITUATION ####################################################
+
+# node-maintenance <container>
+function node-maintenance() {
+  echo "crm node maintenance $1..."
+  docker exec -t "$1" crm node maintenance "$1"
+}
+
+# wait-for-quorum <container>
+function wait-for-quorum() {
+  echo -n "waiting for quorum..."
+  until docker exec -t "$1" crm status | grep -q '3 Nodes configured'; do
+      sleep 1 && printf "."
+  done
+  echo " done!"
+}
+
+start-pacemaker pg01 "$PG01" "$PG02" "$PG03"
+start-pacemaker pg02 "$PG01" "$PG02" "$PG03"
+start-pacemaker pg03 "$PG01" "$PG02" "$PG03"
+
+wait-for-quorum pg01
+node-maintenance pg03
+
+docker exec -t pg01 /bin/configure_pacemaker.bash pg01 pg02 pg03
+
+docker exec -it magenta /bin/bash
+
+# PG01=$(run-container pg01)
+# PG02=$(run-container pg02)
+
+# docker exec -t magenta \
+#   sudo -u postgres /usr/lib/postgresql/9.4/bin/pg_ctl \
+#   -o '-c config_file=/etc/postgresql/9.4/main/postgresql.conf -p 5432' \
+#   -D /var/lib/postgresql/9.4/main -l /var/log/postgresql/postgresql-crm.log start
+# docker exec -t carmen
+#
+#
+# docker exec --detach carmen  /bin/start-cluster "$PG01" "$PG02" "$PG03"
+# docker exec --detach magenta /bin/start-cluster "$PG01" "$PG02" "$PG03"
+# docker exec --detach pg03 /bin/start-cluster "$PG01" "$PG02" "$PG03"
+#
+# docker exec -it magenta /bin/bash
+#
+

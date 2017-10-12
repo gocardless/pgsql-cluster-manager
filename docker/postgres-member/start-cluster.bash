@@ -202,10 +202,6 @@ if [ "$(hostname -i)" == "$PG01" ]; then
   configure_corosync
 fi
 
-wait_for_roles
-configure_dns # needs to happen before PGBouncer
-start_etcd
-start_pgbouncer
-start_cluster_manager
+configure_dns
 
 echo "Cluster is running"
