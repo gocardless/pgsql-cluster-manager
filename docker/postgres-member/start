@@ -30,29 +30,45 @@ function run-container() {
   echo "$ip"
 }
 
+# node-exec <container> <cmd>...
+function node-exec() {
+  docker exec -t "$1" "${@:2}"
+}
+
 function start-postgres() {
   cat <<EOF | write-file "$1" /etc/postgresql/9.4/main/postgresql.conf
 include_if_exists '/var/lib/postgresql/9.4/tmp/rep_mode.conf'
 EOF
 
-  docker exec -t "$1" sudo -u postgres mkdir /var/lib/postgresql/9.4/tmp
-  docker exec -t "$1" sudo -u postgres /usr/lib/postgresql/9.4/bin/pg_ctl \
+  node-exec "$1" sudo -u postgres mkdir -p /var/lib/postgresql/9.4/tmp
+  node-exec "$1" sudo -u postgres /usr/lib/postgresql/9.4/bin/pg_ctl \
     -o '-c config_file=/etc/postgresql/9.4/main/postgresql.conf -p 5432' \
     -D /var/lib/postgresql/9.4/main \
     -l /var/log/postgresql/postgresql-crm.log start
 }
 
+function stop-postgres() {
+  echo -e "[$1]\tstopping postgres..."
+  node-exec "$1" sudo -u postgres /usr/lib/postgresql/9.4/bin/pg_ctl \
+    -o '-c config_file=/etc/postgresql/9.4/main/postgresql.conf -p 5432' \
+    -D /var/lib/postgresql/9.4/main \
+    -l /var/log/postgresql/postgresql-crm.log -m fast stop
+}
+
 function reload-postgres() {
-  docker exec -t "$1" sudo -u postgres psql -c "select pg_reload_conf()"
+  echo -e "[$1]\treloading postgres..."
+  docker exec -t "$1" sudo -u postgres psql -P pager -c "select pg_reload_conf();"
 }
 
 # write-file <container> <filepath>
 function write-file() {
+  echo -e "[$1]\twriting file $2..."
   docker exec -i "$1" bash -c "cat >> $2"
 }
 
 # create-recovery-conf <container> <primary_conn_ip>
 function create-recovery-conf() {
+  echo -e "[$1]\tcreating recovery.conf from $2..."
   cat <<EOF | write-file "$1" /var/lib/postgresql/9.4/main/recovery.conf
 standby_mode = 'on'
 primary_conninfo = 'host=$2 port=5432 user=postgres application_name=$1 keepalives_idle=60 keepalives_interval=5 keepalives_count=5'
@@ -63,6 +79,7 @@ EOF
 
 # create-rep-mode <container> <standby-names>
 function create-rep-mode() {
+  echo -e "[$1]\tcreating rep_mode.conf..."
   cat <<EOF | write-file "$1" /var/lib/postgresql/9.4/tmp/rep_mode.conf
 synchronous_standby_names = '$2'
 EOF
@@ -74,18 +91,9 @@ function stat-replication() {
     -c "select application_name,state,sync_state,sync_priority from pg_stat_replication;"
 }
 
-# docker-proxy-ip <container> <port>
-function docker-proxy-ip() {
-  docker inspect "$1" | jq -r '.[0].NetworkSettings.Ports."'"$2"'/tcp"[0].HostPort'
-}
-
-# docker-psql <container> <args...>
-function docker-psql() {
-  psql -h "$DOCKER_IP" -p "$(docker-proxy-ip "$1" 5432)" "${@}"
-}
-
 # start-pacemaker <container> <cluster-node>...
 function start-pacemaker() {
+  echo -e "[$1]\tstarting pacemaker..."
   docker exec -t "$1" /bin/start_pacemaker.bash "$2" "$3" "$4"
 }
 
@@ -122,31 +130,62 @@ reload-postgres magenta
 
 # THIS IS PRESENT SITUATION ####################################################
 
-# node-maintenance <container>
+# node-maintenance <container> <maintenance>
 function node-maintenance() {
-  echo "crm node maintenance $1..."
-  docker exec -t "$1" crm node maintenance "$1"
+  echo -e "[$1]\tcrm node maintenance $2..."
+  docker exec -t "$1" crm node maintenance "$2"
 }
 
 # wait-for-quorum <container>
 function wait-for-quorum() {
   echo -n "waiting for quorum..."
-  until docker exec -t "$1" crm status | grep -q '3 Nodes configured'; do
+  until docker exec -t "$1" crm status | grep -q 'with quorum'; do
       sleep 1 && printf "."
   done
   echo " done!"
 }
 
+# wait-for-sync <container>
+function wait-for-sync() {
+  echo -n "waiting for master and sync..."
+  until docker exec -t "$1" crm node list | grep -q '|SYNC'; do
+      sleep 1 && printf "."
+  done
+  echo " done!"
+}
+
+# pg-basebackup <container> <source>
+function pg-basebackup() {
+  echo -e "[$1]\tremoving Postgres data directory..."
+  docker exec "$1" sh -c 'rm -rf /var/lib/postgresql/9.4/main'
+  echo -e "[$1]\trunning pg_basebackup from $2..."
+  node-exec "$1" sudo -u postgres pg_basebackup \
+    -P -D /var/lib/postgresql/9.4/main -X stream \
+    -v -h "$2" -U postgres
+}
+
+# Start pacemaker on pg01 & pg02, leaving pg03 off
 start-pacemaker pg01 "$PG01" "$PG02" "$PG03"
 start-pacemaker pg02 "$PG01" "$PG02" "$PG03"
-start-pacemaker pg03 "$PG01" "$PG02" "$PG03"
 
 wait-for-quorum pg01
-node-maintenance pg03
+node-exec pg01 /bin/configure_pacemaker.bash pg01 pg02 pg03
+wait-for-sync pg01
 
-docker exec -t pg01 /bin/configure_pacemaker.bash pg01 pg02 pg03
+MASTER="$(node-exec pg01 bash -c "crm node list | grep -B1 LATEST | head -n1 | cut -d'(' -f1")"
+MASTER="${MASTER/$'\r'/}"
 
-docker exec -it magenta /bin/bash
+echo "identified $MASTER as master node"
+
+node-maintenance "$MASTER" pg01
+node-maintenance "$MASTER" pg02
+
+stop-postgres "$MASTER"
+pg-basebackup "$MASTER" 172.17.0.6 # "$PG03" # backup from our async
+create-recovery-conf "$MASTER" "$MAGENTA" # prepare for replication from magenta
+start-postgres "$MASTER" # start replicating
+
+docker exec -it "$MASTER" /bin/bash
 
 # PG01=$(run-container pg01)
 # PG02=$(run-container pg02)

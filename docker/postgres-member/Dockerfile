@@ -2,6 +2,8 @@
 # Postgres setup
 FROM gocardless/pgsql-cluster-manager
 
+RUN apt-get update && apt-get install tmux psmisc
+
 # Install Postgres configuration, including an empty data directory
 RUN rm -rf /var/lib/postgresql/9.4/main
 ADD main.tar.gz /var/lib/postgresql/9.4/
