@@ -51,6 +51,14 @@ function stop-postgres() {
     -l /var/log/postgresql/postgresql-crm.log -m fast stop
 }
 
+function promote-postgres() {
+  echo -e "[$1]\tpromoting postgres..."
+  node-exec "$1" sudo -u postgres /usr/lib/postgresql/9.4/bin/pg_ctl \
+    -o '-c config_file=/etc/postgresql/9.4/main/postgresql.conf -p 5432' \
+    -D /var/lib/postgresql/9.4/main \
+    -l /var/log/postgresql/postgresql-crm.log promote
+}
+
 function reload-postgres() {
   echo -e "[$1]\treloading postgres..."
   docker exec -t "$1" sudo -u postgres psql -P pager -c "select pg_reload_conf();"
@@ -126,6 +134,8 @@ reload-postgres magenta
 
 # THIS IS PRESENT SITUATION ####################################################
 
+read -p "this is our present situation, press enter to start recovery"
+
 # node-maintenance <container> <maintenance>
 function node-maintenance() {
   echo -e "[$1]\tcrm node maintenance $2..."
@@ -155,7 +165,8 @@ function pg-basebackup() {
   echo -e "[$1]\tremoving Postgres data directory..."
   docker exec "$1" sh -c 'rm -rf /var/lib/postgresql/9.4/main'
   echo -e "[$1]\trunning pg_basebackup from $2..."
-  node-exec "$1" sudo -u postgres pg_basebackup \
+  node-exec "$1" \
+    sudo -u postgres pg_basebackup \
     -P -D /var/lib/postgresql/9.4/main -X stream \
     -v -h "$2" -U postgres
 }
@@ -180,6 +191,9 @@ node-maintenance "$MASTER" pg01
 node-maintenance "$MASTER" pg02
 
 stop-postgres "$SYNC" # this Postgres needs to freeze for a bit
+pg-basebackup "$SYNC" "$PG03" # backup from our async
+create-recovery-conf "$SYNC" "$MASTER" # prepare for replication from master
+create-rep-mode "$SYNC" '' # we want no sync nodes
 
 stop-postgres "$MASTER"
 pg-basebackup "$MASTER" "$PG03" # backup from our async
@@ -187,5 +201,23 @@ create-recovery-conf "$MASTER" "$MAGENTA" # prepare for replication from magenta
 create-rep-mode "$MASTER" '' # we want no sync nodes
 start-postgres "$MASTER" # start replicating
 
-docker exec -it "$MASTER" /bin/bash
+# carmen is sync, pg03 is async, but we want the master to become the new sync
+create-rep-mode magenta "$MASTER,carmen"
+reload-postgres magenta
 
+read -p "return when $MASTER becomes sync of old cluster"
+
+promote-postgres "$MASTER"
+node-exec "$MASTER" crm node ready "$MASTER"
+
+read -p "$MASTER should now be managed by pacemaker"
+
+node-exec "$SYNC" crm node ready "$SYNC"
+
+read -p "$SYNC should now be sync node from $MASTER, and managed by pacemaker"
+
+stop-postgres pg03
+pg-basebackup pg03 "$SYNC"
+start-pacemaker pg03 "$PG01" "$PG02" "$PG03"
+
+echo "pg03 should now become potential, and is managed by pacemaker"
