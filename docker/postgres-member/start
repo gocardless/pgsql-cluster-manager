@@ -36,10 +36,6 @@ function node-exec() {
 }
 
 function start-postgres() {
-  cat <<EOF | write-file "$1" /etc/postgresql/9.4/main/postgresql.conf
-include_if_exists '/var/lib/postgresql/9.4/tmp/rep_mode.conf'
-EOF
-
   node-exec "$1" sudo -u postgres mkdir -p /var/lib/postgresql/9.4/tmp
   node-exec "$1" sudo -u postgres /usr/lib/postgresql/9.4/bin/pg_ctl \
     -o '-c config_file=/etc/postgresql/9.4/main/postgresql.conf -p 5432' \
@@ -63,7 +59,7 @@ function reload-postgres() {
 # write-file <container> <filepath>
 function write-file() {
   echo -e "[$1]\twriting file $2..."
-  docker exec -i "$1" bash -c "cat >> $2"
+  docker exec -i "$1" bash -c "cat > $2"
 }
 
 # create-recovery-conf <container> <primary_conn_ip>
@@ -175,32 +171,21 @@ wait-for-sync pg01
 MASTER="$(node-exec pg01 bash -c "crm node list | grep -B1 LATEST | head -n1 | cut -d'(' -f1")"
 MASTER="${MASTER/$'\r'/}"
 
+SYNC="$(node-exec pg01 bash -c "crm node list | grep -B1 SYNC | head -n1 | cut -d'(' -f1")"
+SYNC="${SYNC/$'\r'/}"
+
 echo "identified $MASTER as master node"
 
 node-maintenance "$MASTER" pg01
 node-maintenance "$MASTER" pg02
 
+stop-postgres "$SYNC" # this Postgres needs to freeze for a bit
+
 stop-postgres "$MASTER"
-pg-basebackup "$MASTER" 172.17.0.6 # "$PG03" # backup from our async
+pg-basebackup "$MASTER" "$PG03" # backup from our async
 create-recovery-conf "$MASTER" "$MAGENTA" # prepare for replication from magenta
+create-rep-mode "$MASTER" '' # we want no sync nodes
 start-postgres "$MASTER" # start replicating
 
 docker exec -it "$MASTER" /bin/bash
-
-# PG01=$(run-container pg01)
-# PG02=$(run-container pg02)
-
-# docker exec -t magenta \
-#   sudo -u postgres /usr/lib/postgresql/9.4/bin/pg_ctl \
-#   -o '-c config_file=/etc/postgresql/9.4/main/postgresql.conf -p 5432' \
-#   -D /var/lib/postgresql/9.4/main -l /var/log/postgresql/postgresql-crm.log start
-# docker exec -t carmen
-#
-#
-# docker exec --detach carmen  /bin/start-cluster "$PG01" "$PG02" "$PG03"
-# docker exec --detach magenta /bin/start-cluster "$PG01" "$PG02" "$PG03"
-# docker exec --detach pg03 /bin/start-cluster "$PG01" "$PG02" "$PG03"
-#
-# docker exec -it magenta /bin/bash
-#
 
