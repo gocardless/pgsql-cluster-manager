@@ -32,7 +32,7 @@ function run-container() {
 
 # node-exec <container> <cmd>...
 function node-exec() {
-  docker exec -t "$1" "${@:2}"
+  docker exec "$1" "${@:2}"
 }
 
 function start-postgres() {
