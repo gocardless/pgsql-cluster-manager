@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+
+set -eu
+
+# Overall flow:
+#
+# - Create a table called temp (SERIAL, TEXT)
+# - SELECT pg_switch_xlog
+# - Put the cluster into maintenance mode
+# - Insert data
+# - Turn off replication on replicas (primary_conninfo)
+
+# - Copy latest WAL out to edit
+
+# - Edit restore_command to restore from /tmp/wals/
+# - Copy WAL into /tmp/wals/
+# - kill -9 the primary Postgres instance
+# - Reload Postgres config on both replicas
+# - Take the cluster out of maintenance
+
+
+# node-exec <container> <cmd>...
+function node-exec() {
+  docker exec "$1" "${@:2}"
+}
+
+# write-file <container> <filepath>
+function write-file() {
+  echo -e "[$1]\twriting file $2..."
+  docker exec -i "$1" bash -c "cat > $2"
+}
+
+function disable-streaming-replication() {
+  echo -e "[$1]\tcreating recovery.conf with no primary_conninfo"
+  cat <<EOF | write-file "$1" /var/lib/postgresql/9.4/main/recovery.conf
+standby_mode = 'on'
+restore_command = 'cp /tmp/wals/%f %p'
+recovery_target_timeline = 'latest'
+EOF
+}
+
+function reload-postgres() {
+  echo -e "[$1]\treloading postgres..."
+  node-exec "$1" psql -U postgres postgres -c "select pg_reload_conf();"
+}
+
+function create-fake-baboon() {
+  echo -e "[$1]\tcreating WAL directory to simulate Barman server..."
+  node-exec "$1" sudo -u postgres mkdir -p /tmp/wals/
+}
+
+function extract-latest-wal() {
+  local latest_file
+  echo -e "[$1]\textracting latest WAL file from node $1..."
+  latest_file=$(node-exec "$1" sudo -u postgres ls -tr1 /var/lib/postgresql/9.4/main/pg_xlog/ | grep -v .history | grep -v archive_status | tail -n1)
+  docker cp "$1":/var/lib/postgresql/9.4/main/pg_xlog/"$latest_file" .
+}
+
+PRIMARY="$(node-exec pg01 bash -c "crm node list | grep -B1 LATEST | head -n1 | cut -d'(' -f1")"
+SYNC="$(node-exec pg01 bash -c "crm node list | grep -B1 SYNC | head -n1 | cut -d'(' -f1")"
+POTENTIAL="$(node-exec pg01 bash -c "crm node list | grep -B1 POTENTIAL | head -n1 | cut -d'(' -f1")"
+
+node-exec "$PRIMARY" psql -U postgres postgres -c "CREATE TABLE repro (data TEXT);"
+node-exec "$PRIMARY" psql -U postgres postgres -c "SELECT pg_switch_xlog();"
+
+node-exec pg01 bash -c "crm configure property maintenance-mode=true"
+
+node-exec "$PRIMARY" psql -U postgres postgres -c "INSERT INTO repro VALUES ('A')";
+node-exec "$PRIMARY" psql -U postgres postgres -c "INSERT INTO repro VALUES ('AB')";
+node-exec "$PRIMARY" psql -U postgres postgres -c "INSERT INTO repro VALUES ('ABC')";
+node-exec "$PRIMARY" psql -U postgres postgres -c "INSERT INTO repro VALUES ('ABC')";
+node-exec "$PRIMARY" psql -U postgres postgres -c "INSERT INTO repro VALUES ('ABCD')";
+node-exec "$PRIMARY" psql -U postgres postgres -c "INSERT INTO repro VALUES ('ABCDE')";
+node-exec "$PRIMARY" psql -U postgres postgres -c "INSERT INTO repro VALUES ('ABCDEF')";
+node-exec "$PRIMARY" psql -U postgres postgres -c "INSERT INTO repro VALUES ('ABCDEFG')";
+node-exec "$PRIMARY" psql -U postgres postgres -c "INSERT INTO repro VALUES ('ABCDEFG')";
+node-exec "$PRIMARY" psql -U postgres postgres -c "INSERT INTO repro VALUES ('ABCDEFGH')";
+node-exec "$PRIMARY" psql -U postgres postgres -c "INSERT INTO repro VALUES ('ABCDEFGHI')";
+node-exec "$PRIMARY" psql -U postgres postgres -c "INSERT INTO repro VALUES ('ABCDEFGHIJ')";
+node-exec "$PRIMARY" psql -U postgres postgres -c "INSERT INTO repro VALUES ('ABCDEFGHIJK')";
+
+disable-streaming-replication "$SYNC"
+disable-streaming-replication "$POTENTIAL"
+
+create-fake-baboon "$SYNC"
+create-fake-baboon "$POTENTIAL"
+
+reload-postgres "$SYNC"
+reload-postgres "$POTENTIAL"
+
+extract-latest-wal "$SYNC"
+
+########################
+# Edit the WAL by hand #
+########################
