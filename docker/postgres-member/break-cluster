@@ -44,6 +44,13 @@ function reload-postgres() {
   node-exec "$1" psql -U postgres postgres -c "select pg_reload_conf();"
 }
 
+function kill-nine-postgres() {
+  local pid
+  echo -e "[$1]\thard killing postgres..."
+  pid=$(node-exec "$1" head -n1 /var/lib/postgresql/9.4/main/postmaster.pid)
+  node-exec "$1" kill -9 $pid
+}
+
 function create-fake-baboon() {
   echo -e "[$1]\tcreating WAL directory to simulate Barman server..."
   node-exec "$1" sudo -u postgres mkdir -p /tmp/wals/
@@ -85,8 +92,7 @@ disable-streaming-replication "$POTENTIAL"
 create-fake-baboon "$SYNC"
 create-fake-baboon "$POTENTIAL"
 
-reload-postgres "$SYNC"
-reload-postgres "$POTENTIAL"
+kill-nine-postgres "$PRIMARY"
 
 extract-latest-wal "$SYNC"
 

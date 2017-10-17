@@ -192,6 +192,11 @@ EOF
   /usr/local/bin/pgsql-cluster-manager.sh
 }
 
+function clean_up_pacemaker() {
+  echo "Cleaning up Pacemaker resources"
+  crm resource cleanup msPostgresql
+}
+
 start_corosync
 wait_for_quorum
 
@@ -204,5 +209,7 @@ configure_dns # needs to happen before PGBouncer
 start_etcd
 start_pgbouncer
 start_cluster_manager
+clean_up_pacemaker
 
 echo "Cluster is running"
+
