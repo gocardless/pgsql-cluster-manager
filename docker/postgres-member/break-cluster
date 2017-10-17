@@ -9,13 +9,12 @@ set -eu
 # - Put the cluster into maintenance mode
 # - Insert data
 # - Turn off replication on replicas (primary_conninfo)
-
+# - Edit restore_command to restore from /tmp/wals/
+# - Restart Postgres on both replicas to pick up recovery conf
+# - kill -9 the primary Postgres instance
 # - Copy latest WAL out to edit
 
-# - Edit restore_command to restore from /tmp/wals/
 # - Copy WAL into /tmp/wals/
-# - kill -9 the primary Postgres instance
-# - Reload Postgres config on both replicas
 # - Take the cluster out of maintenance
 
 
@@ -85,12 +84,6 @@ node-exec "$PRIMARY" psql -U postgres postgres -c "INSERT INTO repro VALUES ('AB
 node-exec "$PRIMARY" psql -U postgres postgres -c "INSERT INTO repro VALUES ('ABCDEFGHI')";
 node-exec "$PRIMARY" psql -U postgres postgres -c "INSERT INTO repro VALUES ('ABCDEFGHIJ')";
 node-exec "$PRIMARY" psql -U postgres postgres -c "INSERT INTO repro VALUES ('ABCDEFGHIJK')";
-
-disable-streaming-replication "$SYNC"
-disable-streaming-replication "$POTENTIAL"
-
-create-fake-baboon "$SYNC"
-create-fake-baboon "$POTENTIAL"
 
 kill-nine-postgres "$PRIMARY"
 

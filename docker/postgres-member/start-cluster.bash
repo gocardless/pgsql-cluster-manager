@@ -13,6 +13,11 @@ PG03="$3"
 
 HOST="$(hostname -i | awk '{print $1}')"
 
+function create_wal_restore_dir() {
+  echo "Creating WAL restore dir"
+  sudo -u postgres mkdir -p /tmp/wals/
+}
+
 function start_corosync() {
   echo "Generating corosync config"
   cat <<EOF > /etc/corosync/corosync.conf
@@ -108,7 +113,7 @@ primitive Postgresql ocf:heartbeat:pgsql \
     node_list="pg01 pg02 pg03" primary_conninfo_opt="keepalives_idle=60 keepalives_interval=5 \
     keepalives_count=5" repuser="postgres" tmpdir="/var/lib/postgresql/9.4/tmp" \
     config="/etc/postgresql/9.4/main/postgresql.conf" \
-    logfile="/var/log/postgresql/postgresql-crm.log" restore_command="exit 0" \
+    logfile="/var/log/postgresql/postgresql-crm.log" restore_command="cp /tmp/wals/%f %p" \
     op start timeout="60s" interval="0s" on-fail="restart" \
     op monitor timeout="60s" interval="2s" on-fail="restart" \
     op monitor timeout="60s" interval="1s" on-fail="restart" role="Master" \
@@ -197,6 +202,7 @@ function clean_up_pacemaker() {
   crm resource cleanup msPostgresql
 }
 
+create_wal_restore_dir
 start_corosync
 wait_for_quorum
 
