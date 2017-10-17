@@ -91,7 +91,7 @@ node-exec "$PRIMARY" psql -U postgres postgres -c "INSERT INTO repro VALUES ('AB
 node-exec "$PRIMARY" psql -U postgres postgres -c "INSERT INTO repro VALUES ('ABCDEFGHIJ')";
 node-exec "$PRIMARY" psql -U postgres postgres -c "INSERT INTO repro VALUES ('ABCDEFGHIJK')";
 
-# TODO: Also stop corosync?
+# TODO: Also stop corosync so the cluster can't decide to bring back the old primary
 kill-nine-postgres "$PRIMARY"
 
 extract-latest-wal "$SYNC"
