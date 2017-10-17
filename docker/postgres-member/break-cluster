@@ -2,21 +2,27 @@
 
 set -eu
 
-# Overall flow:
+# Automated by this script:
 #
 # - Create a table called temp (SERIAL, TEXT)
 # - SELECT pg_switch_xlog
 # - Put the cluster into maintenance mode
 # - Insert data
-# - Turn off replication on replicas (primary_conninfo)
-# - Edit restore_command to restore from /tmp/wals/
-# - Restart Postgres on both replicas to pick up recovery conf
 # - kill -9 the primary Postgres instance
 # - Copy latest WAL out to edit
 
-# - Copy WAL into /tmp/wals/
+# Manual steps:
+#
+# - Set one of the WAL record sizes to zero (null byte)
+# - Copy that WAL into /tmp/wals/ on both replicas
 # - Take the cluster out of maintenance
+# - See what lols ensue
 
+# Discarded steps:
+#
+# - Edit restore_command to restore from /tmp/wals/ (now set in initial config)
+# - Restart Postgres on both replicas to pick up recovery conf (no changes needed)
+# - Turn off replication on replicas (primary_conninfo) (no need, hard killing primary)
 
 # node-exec <container> <cmd>...
 function node-exec() {
@@ -85,6 +91,7 @@ node-exec "$PRIMARY" psql -U postgres postgres -c "INSERT INTO repro VALUES ('AB
 node-exec "$PRIMARY" psql -U postgres postgres -c "INSERT INTO repro VALUES ('ABCDEFGHIJ')";
 node-exec "$PRIMARY" psql -U postgres postgres -c "INSERT INTO repro VALUES ('ABCDEFGHIJK')";
 
+# TODO: Also stop corosync?
 kill-nine-postgres "$PRIMARY"
 
 extract-latest-wal "$SYNC"
