@@ -56,6 +56,12 @@ function kill-nine-postgres() {
   node-exec "$1" kill -9 $pid
 }
 
+function turn-off-corosync() {
+  echo -e "[$1]\thard killing postgres..."
+  # For some reason this succeeds, but exits 1, and I don't care to figure out why
+  node-exec "$1" service pacemaker stop || return 0
+}
+
 function create-fake-baboon() {
   echo -e "[$1]\tcreating WAL directory to simulate Barman server..."
   node-exec "$1" sudo -u postgres mkdir -p /tmp/wals/
@@ -91,8 +97,8 @@ node-exec "$PRIMARY" psql -U postgres postgres -c "INSERT INTO repro VALUES ('AB
 node-exec "$PRIMARY" psql -U postgres postgres -c "INSERT INTO repro VALUES ('ABCDEFGHIJ')";
 node-exec "$PRIMARY" psql -U postgres postgres -c "INSERT INTO repro VALUES ('ABCDEFGHIJK')";
 
-# TODO: Also stop corosync so the cluster can't decide to bring back the old primary
 kill-nine-postgres "$PRIMARY"
+turn-off-corosync "$PRIMARY"
 
 extract-latest-wal "$SYNC"
 
