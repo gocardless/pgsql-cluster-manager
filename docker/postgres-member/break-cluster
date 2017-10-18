@@ -67,11 +67,15 @@ function create-fake-baboon() {
   node-exec "$1" sudo -u postgres mkdir -p /tmp/wals/
 }
 
-function extract-latest-wal() {
+function get-latest-wal-name() {
   local latest_file
-  echo -e "[$1]\textracting latest WAL file from node $1..."
   latest_file=$(node-exec "$1" sudo -u postgres ls -tr1 /var/lib/postgresql/9.4/main/pg_xlog/ | grep -v .history | grep -v archive_status | tail -n1)
-  docker cp "$1":/var/lib/postgresql/9.4/main/pg_xlog/"$latest_file" .
+  return latest_file
+}
+
+function extract-wal() {
+  echo -e "[$1]\textracting latest WAL file $2 from node $1..."
+  docker cp "$1":/var/lib/postgresql/9.4/main/pg_xlog/"$2" .
 }
 
 PRIMARY="$(node-exec pg01 bash -c "crm node list | grep -B1 LATEST | head -n1 | cut -d'(' -f1")"
@@ -100,7 +104,13 @@ node-exec "$PRIMARY" psql -U postgres postgres -c "INSERT INTO repro VALUES ('AB
 kill-nine-postgres "$PRIMARY"
 turn-off-corosync "$PRIMARY"
 
-extract-latest-wal "$SYNC"
+LATEST_WAL=get-latest-wal-name "$SYNC"
+extract-latest-wal "$SYNC" "$LATEST_WAL"
+
+break-wal "$LATEST_WAL"
+
+inject-wal "$SYNC" "$LATEST_WAL"
+inject-wal "$POTENTIAL" "$LATEST_WAL"
 
 ########################
 # Edit the WAL by hand #
