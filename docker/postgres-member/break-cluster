@@ -78,6 +78,20 @@ function extract-wal() {
   docker cp "$1":/var/lib/postgresql/9.4/main/pg_xlog/"$2" .
 }
 
+function break-wal() {
+  echo -e "[$1]\tbreaking WAL file $1..."
+  pushd $(dirname $0)
+  ./break-wal "$1"
+  popd
+}
+
+function inject-wal() {
+  local without_suffix
+  echo -e "[$1]\tinjecting WAL file $2 into node $1..."
+  without_suffix=$(basename -s .broken "$2")
+  docker cp $2 "$1":/tmp/wals/"$without_suffix" .
+}
+
 PRIMARY="$(node-exec pg01 bash -c "crm node list | grep -B1 LATEST | head -n1 | cut -d'(' -f1")"
 SYNC="$(node-exec pg01 bash -c "crm node list | grep -B1 SYNC | head -n1 | cut -d'(' -f1")"
 POTENTIAL="$(node-exec pg01 bash -c "crm node list | grep -B1 POTENTIAL | head -n1 | cut -d'(' -f1")"
@@ -85,7 +99,7 @@ POTENTIAL="$(node-exec pg01 bash -c "crm node list | grep -B1 POTENTIAL | head -
 node-exec "$PRIMARY" psql -U postgres postgres -c "CREATE TABLE repro (data TEXT);"
 node-exec "$PRIMARY" psql -U postgres postgres -c "SELECT pg_switch_xlog();"
 
-node-exec pg01 bash -c "crm configure property maintenance-mode=true"
+node-exec "$SYNC" bash -c "crm configure property maintenance-mode=true"
 
 node-exec "$PRIMARY" psql -U postgres postgres -c "INSERT INTO repro VALUES ('A')";
 node-exec "$PRIMARY" psql -U postgres postgres -c "INSERT INTO repro VALUES ('AB')";
@@ -109,8 +123,10 @@ extract-latest-wal "$SYNC" "$LATEST_WAL"
 
 break-wal "$LATEST_WAL"
 
-inject-wal "$SYNC" "$LATEST_WAL"
-inject-wal "$POTENTIAL" "$LATEST_WAL"
+inject-wal "$SYNC" "$LATEST_WAL".broken
+inject-wal "$POTENTIAL" "$LATEST_WAL".broken
+
+node-exec "$SYNC" bash -c "crm configure property maintenance-mode=false"
 
 ########################
 # Edit the WAL by hand #

@@ -1,0 +1,10 @@
+#!/usr/bin/env ruby
+
+wal_file_name = ARGV[0]
+puts wal_file_name
+
+wal_contents = IO.read(wal_file_name, encoding: "BINARY")
+hex = wal_contents.unpack("H*").first
+replaced = hex.gsub(/3f(000000.+41424300)/, "00\\1")
+bindata = [replaced].pack("H*")
+File.write(wal_file_name + ".broken", bindata)
