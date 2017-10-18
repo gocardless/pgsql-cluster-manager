@@ -91,6 +91,14 @@ function inject-wal() {
   docker cp $2 "$1":/tmp/wals/"$without_suffix"
 }
 
+function send-signal-postgres-worker() {
+  local process_pid
+  echo -e "[$1]\tKilling $2 process with $3 on $1..."
+  process_pid=$(node-exec "$1" ps -ef | grep postgres | grep $2 | awk '{ print $2}')
+  echo -e "[$1]\t$2 process pid is $process_pid"
+  node-exec "$1" kill -"$3" $process_pid
+}
+
 PRIMARY="$(node-exec pg01 bash -c "crm node list | grep -B1 LATEST | head -n1 | cut -d'(' -f1")"
 SYNC="$(node-exec pg01 bash -c "crm node list | grep -B1 SYNC | head -n1 | cut -d'(' -f1")"
 POTENTIAL="$(node-exec pg01 bash -c "crm node list | grep -B1 POTENTIAL | head -n1 | cut -d'(' -f1")"
@@ -127,8 +135,6 @@ inject-wal "$POTENTIAL" "$LATEST_WAL".broken
 
 sleep 3
 
-node-exec "$SYNC" bash -c "crm configure property maintenance-mode=false"
+send-signal-postgres-worker $SYNC "writer" "SIGSEGV"
 
-########################
-# Edit the WAL by hand #
-########################
+node-exec "$SYNC" bash -c "crm configure property maintenance-mode=false"
