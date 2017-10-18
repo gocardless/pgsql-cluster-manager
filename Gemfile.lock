@@ -8,6 +8,7 @@ GEM
     childprocess (0.7.1)
       ffi (~> 1.0, >= 1.0.11)
     clamp (1.0.1)
+    coderay (1.1.2)
     dotenv (2.2.1)
     ffi (1.9.18)
     fpm (1.9.2)
@@ -24,6 +25,7 @@ GEM
     insist (1.0.0)
     io-like (0.3.0)
     json (1.8.6)
+    method_source (0.9.0)
     mustache (0.99.8)
     pleaserun (0.0.30)
       cabin (> 0)
@@ -32,6 +34,9 @@ GEM
       insist
       mustache (= 0.99.8)
       stud
+    pry (0.11.1)
+      coderay (~> 1.1.0)
+      method_source (~> 0.9.0)
     ruby-xz (0.2.3)
       ffi (~> 1.9)
       io-like (~> 0.3)
@@ -42,6 +47,7 @@ PLATFORMS
 
 DEPENDENCIES
   fpm (~> 1.9)
+  pry
 
 BUNDLED WITH
    1.15.4
