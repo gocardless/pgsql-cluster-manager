@@ -25,6 +25,7 @@ docker exec --detach pg01 /bin/start-cluster "$PG01" "$PG02" "$PG03"
 docker exec --detach pg02 /bin/start-cluster "$PG01" "$PG02" "$PG03"
 docker exec --detach pg03 /bin/start-cluster "$PG01" "$PG02" "$PG03"
 
+docker exec -it pg01 /bin/bash -c 'tail -f /var/log/start-cluster.log'
 docker exec -it pg01 /bin/bash
 
 docker kill pg01 pg02 pg03

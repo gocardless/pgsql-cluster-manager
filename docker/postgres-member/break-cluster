@@ -57,7 +57,7 @@ function kill-nine-postgres() {
 }
 
 function turn-off-corosync() {
-  echo -e "[$1]\thard killing postgres..."
+  echo -e "[$1]\tturning off pacemaker..."
   # For some reason this succeeds, but exits 1, and I don't care to figure out why
   node-exec "$1" service pacemaker stop || return 0
 }
@@ -70,7 +70,8 @@ function create-fake-baboon() {
 function get-latest-wal-name() {
   local latest_file
   latest_file=$(node-exec "$1" sudo -u postgres ls -tr1 /var/lib/postgresql/9.4/main/pg_xlog/ | grep -v .history | grep -v archive_status | tail -n1)
-  return latest_file
+  # How to "return" a string in bash
+  echo $latest_file
 }
 
 function extract-wal() {
@@ -80,16 +81,14 @@ function extract-wal() {
 
 function break-wal() {
   echo -e "[$1]\tbreaking WAL file $1..."
-  pushd $(dirname $0)
-  ./break-wal "$1"
-  popd
+  "$(dirname $0)"/break-wal "$1"
 }
 
 function inject-wal() {
   local without_suffix
   echo -e "[$1]\tinjecting WAL file $2 into node $1..."
   without_suffix=$(basename -s .broken "$2")
-  docker cp $2 "$1":/tmp/wals/"$without_suffix" .
+  docker cp $2 "$1":/tmp/wals/"$without_suffix"
 }
 
 PRIMARY="$(node-exec pg01 bash -c "crm node list | grep -B1 LATEST | head -n1 | cut -d'(' -f1")"
@@ -118,13 +117,15 @@ node-exec "$PRIMARY" psql -U postgres postgres -c "INSERT INTO repro VALUES ('AB
 kill-nine-postgres "$PRIMARY"
 turn-off-corosync "$PRIMARY"
 
-LATEST_WAL=get-latest-wal-name "$SYNC"
-extract-latest-wal "$SYNC" "$LATEST_WAL"
+LATEST_WAL=$(get-latest-wal-name "$PRIMARY")
+extract-wal "$PRIMARY" "$LATEST_WAL"
 
 break-wal "$LATEST_WAL"
 
 inject-wal "$SYNC" "$LATEST_WAL".broken
 inject-wal "$POTENTIAL" "$LATEST_WAL".broken
+
+sleep 3
 
 node-exec "$SYNC" bash -c "crm configure property maintenance-mode=false"
 
