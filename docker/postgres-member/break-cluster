@@ -103,6 +103,12 @@ PRIMARY="$(node-exec pg01 bash -c "crm node list | grep -B1 LATEST | head -n1 | 
 SYNC="$(node-exec pg01 bash -c "crm node list | grep -B1 SYNC | head -n1 | cut -d'(' -f1")"
 POTENTIAL="$(node-exec pg01 bash -c "crm node list | grep -B1 POTENTIAL | head -n1 | cut -d'(' -f1")"
 
+echo "Primary is $PRIMARY"
+echo "Sync is $SYNC"
+echo "Potential is $POTENTIAL"
+
+read -p "Press enter to break everything"
+
 node-exec "$PRIMARY" psql -U postgres postgres -c "CREATE TABLE repro (data TEXT);"
 node-exec "$PRIMARY" psql -U postgres postgres -c "SELECT pg_switch_xlog();"
 
@@ -133,8 +139,13 @@ break-wal "$LATEST_WAL"
 inject-wal "$SYNC" "$LATEST_WAL".broken
 inject-wal "$POTENTIAL" "$LATEST_WAL".broken
 
-sleep 3
+read -p "Press enter to kill WAL writer on sync ($SYNC)"
 
-send-signal-postgres-worker $SYNC "writer" "SIGSEGV"
+# Running this query means we get the "aborting due to a crash in another process" log
+node-exec "$SYNC" psql -U postgres postgres -c 'SELECT pg_sleep(10)' > /dev/null 2>&1 &
+sleep 2
+send-signal-postgres-worker $SYNC "writer" "SIGABRT"
+
+read -p "Press enter to take Pacemaker cluster out of maintenance mode"
 
 node-exec "$SYNC" bash -c "crm configure property maintenance-mode=false"

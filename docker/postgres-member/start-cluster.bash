@@ -215,6 +215,8 @@ configure_dns # needs to happen before PGBouncer
 start_etcd
 start_pgbouncer
 start_cluster_manager
+
+sleep 3
 clean_up_pacemaker
 
 echo "Cluster is running"
