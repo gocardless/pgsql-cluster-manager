@@ -53,6 +53,7 @@ OCF_RESKEY_node_list_default=""
 OCF_RESKEY_restore_command_default=""
 OCF_RESKEY_archive_cleanup_command_default=""
 OCF_RESKEY_recovery_end_command_default=""
+OCF_RESKEY_master_ip_default=""
 OCF_RESKEY_repuser_default="postgres"
 OCF_RESKEY_primary_conninfo_opt_default=""
 OCF_RESKEY_tmpdir_default="/var/lib/pgsql/tmp"
@@ -81,6 +82,7 @@ OCF_RESKEY_stop_escalate_in_slave_default=30
 : ${OCF_RESKEY_restore_command=${OCF_RESKEY_restore_command_default}}
 : ${OCF_RESKEY_archive_cleanup_command=${OCF_RESKEY_archive_cleanup_command_default}}
 : ${OCF_RESKEY_recovery_end_command=${OCF_RESKEY_recovery_end_command_default}}
+: ${OCF_RESKEY_master_ip=${OCF_RESKEY_master_ip_default}}
 : ${OCF_RESKEY_repuser=${OCF_RESKEY_repuser_default}}
 : ${OCF_RESKEY_primary_conninfo_opt=${OCF_RESKEY_primary_conninfo_opt_default}}
 : ${OCF_RESKEY_tmpdir=${OCF_RESKEY_tmpdir_default}}
@@ -252,7 +254,7 @@ Number of shutdown retries (using -m fast) before resorting to -m immediate
 <longdesc lang="en">
 Replication mode(none(default)/async/sync).
 "async" and "sync" require PostgreSQL 9.1 or later.
-If you use async or sync, it requires node_list, restore_command
+If you use async or sync, it requires node_list, master_ip, restore_command
 parameters, and needs setting postgresql.conf, pg_hba.conf up for
 replication.
 Please delete "include /../../rep_mode.conf" line in postgresql.conf
@@ -296,6 +298,16 @@ This is used for replication and is optional.
 </longdesc>
 <shortdesc lang="en">recovery_end_command</shortdesc>
 <content type="string" default="${OCF_RESKEY_recovery_end_command_default}" />
+</parameter>
+
+<parameter name="master_ip" unique="0" required="0">
+<longdesc lang="en">
+Master's floating IP address to be connected from hot standby.
+This parameter is used for "primary_conninfo" in recovery.conf.
+This is required for replication.
+</longdesc>
+<shortdesc lang="en">master ip</shortdesc>
+<content type="string" default="${OCF_RESKEY_master_ip_default}" />
 </parameter>
 
 <parameter name="repuser" unique="0" required="0">
@@ -917,11 +929,6 @@ pgsql_notify() {
                                   sed "s/ /\n/g" | head -1`
                     if [ "$PROMOTE_NODE" != "$NODENAME" ]; then
                         delete_master_baseline
-                        # We need to restart Postgres at this point, because our
-                        # master (and therefore our replication target) has
-                        # changed, and Postgres does not support live reloading
-                        # of recovery.conf at this time.
-                        pgsql_stop && pgsql_start
                     fi
                     return $OCF_SUCCESS
                     ;;
@@ -1274,26 +1281,6 @@ user_recovery_conf() {
     fi
 }
 
-#
-# Get master node IP address- we need to do this so that we can identify which
-# IP to use for replication. In the default version of this script, it's
-# typically the case that we'd manage replication by connecting to the primary's
-# VIP, but we have no VIPs in this setup.
-#
-get_master_ip() {
-  get_node_ip "$(crm_mon -n1 | grep -PB1 "Master" | awk '{ print $3 }' | grep -Po '\d+')"
-}
-
-#
-# get_node_ip <node-id>
-#
-get_node_ip() {
-  grep -C1 "nodeid: $1" /etc/corosync/corosync.conf \
-    | grep -oP "ring0_addr: \S+" \
-    | head -n1 \
-    | awk '{print $NF}'
-}
-
 make_recovery_conf() {
     runasowner "touch $RECOVERY_CONF"
     if [ $? -ne 0 ]; then
@@ -1301,17 +1288,15 @@ make_recovery_conf() {
         return 1
     fi
 
-    master_node_ip=$(get_master_ip)
-
 cat > $RECOVERY_CONF <<END
 standby_mode = 'on'
-primary_conninfo = 'host=${master_node_ip} port=${OCF_RESKEY_pgport} user=${OCF_RESKEY_repuser} application_name=${NODENAME} ${OCF_RESKEY_primary_conninfo_opt}'
+primary_conninfo = 'host=${OCF_RESKEY_master_ip} port=${OCF_RESKEY_pgport} user=${OCF_RESKEY_repuser} application_name=${NODENAME} ${OCF_RESKEY_primary_conninfo_opt}'
 restore_command = '${OCF_RESKEY_restore_command}'
 recovery_target_timeline = 'latest'
 END
 
     user_recovery_conf >> $RECOVERY_CONF
-    ocf_log debug "Created recovery.conf. host=${master_node_ip}, user=${OCF_RESKEY_repuser}"
+    ocf_log debug "Created recovery.conf. host=${OCF_RESKEY_master_ip}, user=${OCF_RESKEY_repuser}"
     return 0
 }
 
@@ -1538,6 +1523,10 @@ pgsql_validate_all() {
         fi
         if [ ! "$OCF_RESKEY_rep_mode" = "sync" -a ! "$OCF_RESKEY_rep_mode" = "async" ]; then
             ocf_log err "Invalid rep_mode : $OCF_RESKEY_rep_mode"
+            return $OCF_ERR_CONFIGURED
+        fi
+        if [ ! -n "$OCF_RESKEY_master_ip" ]; then
+            ocf_log err "master_ip can't be empty."
             return $OCF_ERR_CONFIGURED
         fi
         if [ ! -n "$NODE_LIST" ]; then
