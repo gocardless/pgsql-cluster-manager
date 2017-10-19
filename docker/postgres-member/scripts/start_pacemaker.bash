@@ -8,10 +8,10 @@ echo "Generating corosync config"
 cat <<EOF > /etc/corosync/corosync.conf
 totem {
       version: 2
-      token: 3000
-      token_retransmits_before_loss_const: 10
-      join: 60
-      consensus: 3600
+      token: 250
+      token_retransmits_before_loss_const: 5
+      join: 10
+      consensus: 600
       vsftype: none
       max_messages: 20
       clear_node_high_bit: yes

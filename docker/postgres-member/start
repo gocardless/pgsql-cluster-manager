@@ -18,6 +18,8 @@ function run-container() {
     --privileged \
     --detach \
     --publish-all \
+    --volume "/var/run/docker.sock:/var/run/docker.sock" \
+    --volume "$(pwd)/stonith/docker:/usr/lib/stonith/plugins/external/docker" \
     --volume "${HOSTS}:/etc/hosts" \
     gocardless/postgres-member \
     sh -c "while :; do sleep 1; done")
@@ -117,6 +119,16 @@ CARMEN=$(run-container carmen)
 PG01=$(run-container pg01)
 PG02=$(run-container pg02)
 PG03=$(run-container pg03)
+
+MODE=${1:-slow}
+
+if [ "$MODE" == "fast" ]; then
+  echo "starting cluster immediately..."
+  docker exec --detach pg01 /bin/start_pacemaker.bash "$PG01" "$PG02" "$PG03"
+  docker exec --detach pg02 /bin/start_pacemaker.bash "$PG01" "$PG02" "$PG03"
+  docker exec --detach pg03 /bin/start_pacemaker.bash "$PG01" "$PG02" "$PG03"
+  exit 0
+fi
 
 start-postgres magenta # standalone, single primary
 

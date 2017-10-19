@@ -3,6 +3,7 @@
 FROM gocardless/pgsql-cluster-manager
 
 RUN apt-get update && apt-get install tmux psmisc
+RUN apt-get install -y docker.io
 
 # Install Postgres configuration, including an empty data directory
 RUN rm -rf /var/lib/postgresql/9.4/main
@@ -16,6 +17,7 @@ RUN cp -v /etc/pgbouncer/pgbouncer.ini.template /etc/pgbouncer/pgbouncer.ini
 
 COPY corosync/authkey /etc/corosync/
 COPY resource_agents/pgsql /usr/lib/ocf/resource.d/heartbeat/
+COPY stonith/docker /usr/lib/stonith/plugins/external/
 
 COPY start-cluster.bash /bin/start-cluster
 

@@ -198,7 +198,7 @@ EOF
 start_corosync
 wait_for_quorum
 
-if [ "$(hostname -i)" == "$PG01" ]; then
+if [ "$(hostname -i | awk '{ print $1 }')" == "$PG01" ]; then
   configure_corosync
 fi
 

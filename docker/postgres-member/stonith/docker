@@ -1,0 +1,50 @@
+#!/bin/sh
+
+log() {
+  echo "[$(date)] [server_id=$server_id] [1=$1]" "${@}" >>/var/log/docker-stonith
+}
+
+print_metadata() {
+  cat <<EOF
+<parameters>
+  <parameter name="server_id" unique="0">
+    <content type="string" />
+    <shortdesc lang="en">ID of container to kill</shortdesc>
+  </parameter>
+</parameters>
+EOF
+}
+
+server_kill() {
+  docker kill -s 9 "$server_id"
+}
+
+server_monitor() {
+  if docker ps | grep "$server_id"; then
+    return 0
+  elif docker ps -a | grep "$server_id"; then
+    return 2
+  fi
+
+  return 1
+}
+
+log "Running stonith..."
+
+case "$1" in
+  on)               exit 0;;
+  meta-data)        print_metadata; exit 0;;
+  getconfignames)   echo "server_id"; exit 0;;
+  gethosts)         echo "$server_id"; exit 0;;
+  reset)            server_kill && exit $?;;
+  off)              server_kill && exit $?;;
+  monitor)          server_monitor && exit $?;;
+  status)           exit 0;;
+
+  getinfo-devdescr) echo "blah blah blah"; exit 0;;
+  getinfo-devid)    echo "Docker"; exit 0;;
+  getinfo-devurl)   echo "google.com"; exit 0;;
+  getinfo-xml)      print_metadata; exit 0;;
+esac
+
+log "Can't handle this action"
