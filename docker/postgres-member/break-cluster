@@ -146,7 +146,9 @@ node-exec "$PRIMARY" psql -U postgres postgres -c "INSERT INTO repro VALUES ('AB
 node-exec "$PRIMARY" psql -U postgres postgres -c "INSERT INTO repro VALUES ('ABCDEFGHIJK')";
 
 kill-nine-postgres "$PRIMARY"
-turn-off-corosync "$PRIMARY"
+
+# Not doing this for now as we're not sure it reflects what really happened
+# turn-off-corosync "$PRIMARY"
 
 LATEST_WAL=$(get-latest-wal-name "$PRIMARY")
 extract-wal "$PRIMARY" "$LATEST_WAL"
