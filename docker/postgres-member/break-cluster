@@ -146,25 +146,22 @@ node-exec "$PRIMARY" psql -U postgres postgres -c "INSERT INTO repro VALUES ('AB
 node-exec "$PRIMARY" psql -U postgres postgres -c "INSERT INTO repro VALUES ('ABCDEFGHIJK')";
 
 kill-nine-postgres "$PRIMARY"
-
 # Not doing this for now as we're not sure it reflects what really happened
 # turn-off-corosync "$PRIMARY"
 
-LATEST_WAL=$(get-latest-wal-name "$PRIMARY")
-extract-wal "$PRIMARY" "$LATEST_WAL"
+# LATEST_WAL=$(get-latest-wal-name "$PRIMARY")
+# extract-wal "$PRIMARY" "$LATEST_WAL"
 
-break-wal "$LATEST_WAL"
+# break-wal "$LATEST_WAL"
 
-inject-wal "$SYNC" "$LATEST_WAL".broken
-inject-wal "$POTENTIAL" "$LATEST_WAL".broken
+# inject-wal "$SYNC" "$LATEST_WAL".broken
+# inject-wal "$POTENTIAL" "$LATEST_WAL".broken
 
-read -p "Press enter to kill WAL writer on sync ($SYNC)"
+# read -p "Press enter to kill WAL writer on sync ($SYNC) and bring cluster out of maintenance"
 
 # Running this query means we get the "aborting due to a crash in another process" log
-node-exec "$SYNC" psql -U postgres postgres -c 'SELECT pg_sleep(10)' > /dev/null 2>&1 &
-sleep 2
+# node-exec "$SYNC" psql -U postgres postgres -c 'SELECT pg_sleep(10)' > /dev/null 2>&1 &
+# sleep 2
 send-signal-postgres-worker $SYNC "writer" "SIGABRT"
-
-read -p "Press enter to take Pacemaker cluster out of maintenance mode"
 
 node-exec "$SYNC" bash -c "crm configure property maintenance-mode=false"
