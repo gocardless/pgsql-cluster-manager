@@ -49,6 +49,19 @@ function reload-postgres() {
   node-exec "$1" psql -U postgres postgres -c "select pg_reload_conf();"
 }
 
+function add-backup-vip() {
+  echo -e "[$1]\tadding backup VIP to cluster..."
+  node-exec "$1" crm configure primitive PostgresqlBackupVIP ocf:heartbeat:IPaddr2 params ip=172.17.0.101 cidr_netmask=32 op monitor interval=5s
+  node-exec "$1" crm configure colocation backup-vip-not-with-master -inf: PostgresqlBackupVIP msPostgresql:Master
+}
+
+function force-backup-vip-to-node() {
+  echo -e "[$1]\tforcing backup VIP to node $1..."
+  # VIP might already be in the right place
+  node-exec "$1" crm resource migrate PostgresqlBackupVIP $1 || return 0
+  node-exec "$1" crm resource unmigrate PostgresqlBackupVIP || return 0
+}
+
 function kill-nine-postgres() {
   local pid
   echo -e "[$1]\thard killing postgres..."
@@ -106,6 +119,10 @@ POTENTIAL="$(node-exec pg01 bash -c "crm node list | grep -B1 POTENTIAL | head -
 echo "Primary is $PRIMARY"
 echo "Sync is $SYNC"
 echo "Potential is $POTENTIAL"
+
+add-backup-vip "$SYNC"
+force-backup-vip-to-node "$SYNC"
+sleep 2
 
 read -p "Press enter to break everything"
 
