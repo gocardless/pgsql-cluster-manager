@@ -14,6 +14,8 @@ RUN cp -v /etc/pgbouncer/pgbouncer.ini.template /etc/pgbouncer/pgbouncer.ini
 
 COPY corosync/authkey /etc/corosync/
 COPY resource_agents/pgsql /usr/lib/ocf/resource.d/heartbeat/
+COPY stonith/docker /usr/lib/stonith/plugins/external/
+RUN chmod 700 /usr/lib/stonith/plugins/external/docker
 
 COPY start-cluster.bash /bin/start-cluster
 

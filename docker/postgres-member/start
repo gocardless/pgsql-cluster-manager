@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Starts a cluster, booting into a bash session inside pg01 that on exit will
+# kill and clean-up the containers.
 
 function run-container() {
   local id
@@ -10,12 +12,14 @@ function run-container() {
     --detach \
     --publish-all \
     --volume "$(git rev-parse --show-toplevel):/pgsql-cluster-manager" \
+    --volume "/var/run/docker.sock:/var/run/docker.sock" \
     gocardless/postgres-member \
     sh -c "while :; do sleep 1; done")
   docker inspect "$id" | jq -r '.[0].NetworkSettings.IPAddress'
 }
 
-docker rm pg01 pg02 pg03
+docker build -t gocardless/postgres-member .
+docker rm -f pg01 pg02 pg03
 
 PG01=$(run-container pg01)
 PG02=$(run-container pg02)

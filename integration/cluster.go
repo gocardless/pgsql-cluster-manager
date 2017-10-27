@@ -154,6 +154,7 @@ func StartCluster(t *testing.T, ctx context.Context) *Cluster {
 			HostConfig: &docker.HostConfig{
 				Binds: []string{
 					fmt.Sprintf("%s:/pgsql-cluster-manager", workspaceDirectory),
+					"/var/run/docker.sock:/var/run/docker.sock",
 				},
 				Privileged:      true,
 				PublishAllPorts: true,

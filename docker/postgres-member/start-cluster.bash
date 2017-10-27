@@ -7,9 +7,15 @@ set -eu
 
 [[ -t 1 ]] || exec >/var/log/start-cluster.log 2>&1
 
-PG01="$1"
-PG02="$2"
-PG03="$3"
+# container_id <ip>
+function container_id() {
+  docker inspect -f '{{ .Id }} {{ .NetworkSettings.IPAddress }}' $(docker ps -q) \
+    | grep "$1" | awk '{ print $1 }'
+}
+
+PG01="$1"; PG01_ID="$(container_id "$PG01")"
+PG02="$2"; PG02_ID="$(container_id "$PG02")"
+PG03="$3"; PG03_ID="$(container_id "$PG03")"
 
 HOST="$(hostname -i | awk '{print $1}')"
 
@@ -97,10 +103,10 @@ function wait_for_quorum() {
   echo " done!"
 }
 
-function configure_corosync() {
-  echo "Configuring corosync"
+function configure_pacemaker() {
+  echo "Configuring pacemaker"
   cat <<EOF | crm configure
-property stonith-enabled=false
+property stonith-enabled=true
 property default-resource-stickiness=100
 primitive Postgresql ocf:heartbeat:pgsql \
     params pgctl="/usr/lib/postgresql/9.4/bin/pg_ctl" psql="/usr/bin/psql" \
@@ -117,6 +123,12 @@ primitive Postgresql ocf:heartbeat:pgsql \
     op stop timeout="60s" interval="0s" on-fail="block" \
     op notify timeout="60s" interval="0s"
 ms msPostgresql Postgresql params master-max=1 master-node-max=1 clone-max=3 clone-node-max=1 notify=true
+primitive shoot-pg01 stonith:external/docker params server_id="$PG01_ID"
+location fence_pg01 shoot-pg01 -inf: pg01
+primitive shoot-pg02 stonith:external/docker params server_id="$PG02_ID"
+location fence_pg02 shoot-pg02 -inf: pg02
+primitive shoot-pg03 stonith:external/docker params server_id="$PG03_ID"
+location fence_pg03 shoot-pg03 -inf: pg03
 commit
 end
 EOF
@@ -196,7 +208,7 @@ start_corosync
 wait_for_quorum
 
 if [ "$(hostname -i)" == "$PG01" ]; then
-  configure_corosync
+  configure_pacemaker
 fi
 
 wait_for_roles
