@@ -126,7 +126,7 @@ primitive Postgresql ocf:heartbeat:pgsql \
 ms msPostgresql Postgresql params master-max=1 master-node-max=1 clone-max=3 clone-node-max=1 notify=true
 colocation vip-with-master inf: PostgresqlVIP msPostgresql:Master
 order start-vip-after-postgres inf: msPostgresql:promote PostgresqlVIP:start symmetrical=false
-order stop-vip-after-postgres 0: msPostgresql:demote PostgresqlVIP:stop symmetrical=false
+order stop-vip-after-postgres 100: msPostgresql:demote PostgresqlVIP:stop symmetrical=false
 commit
 end
 EOF
