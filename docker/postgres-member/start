@@ -15,7 +15,7 @@ function run-container() {
     --volume "/var/run/docker.sock:/var/run/docker.sock" \
     gocardless/postgres-member \
     sh -c "while :; do sleep 1; done")
-  docker inspect "$id" | jq -r '.[0].NetworkSettings.IPAddress'
+  echo "$id"
 }
 
 docker build -t gocardless/postgres-member .
