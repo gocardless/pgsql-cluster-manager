@@ -18,12 +18,15 @@ type migration struct {
 
 type MigrationConfig struct {
 	*logrus.Logger
-	Etcd          etcdClient
-	EtcdMasterKey string
-	Clients       []MigrationClient
-	Locker        locker
-	PauseTimeout  time.Duration
-	PauseExpiry   time.Duration
+	Etcd               etcdClient
+	EtcdMasterKey      string
+	Clients            []MigrationClient
+	Locker             locker
+	HealthCheckTimeout time.Duration
+	LockTimeout        time.Duration
+	PauseTimeout       time.Duration
+	PauseExpiry        time.Duration
+	PacemakerTimeout   time.Duration
 }
 
 func NewMigration(cfg MigrationConfig) *migration {
@@ -51,16 +54,16 @@ func (m *migration) Run(ctx context.Context) error {
 	}
 
 	m.Info("Health checking clients")
-	if err := m.HealthCheck(timeout(5 * time.Second)); err != nil {
+	if err := m.HealthCheck(timeout(m.HealthCheckTimeout)); err != nil {
 		return err
 	}
 
-	m.Info("Acquiring lock")
-	if err := m.Locker.Lock(timeout(10 * time.Second)); err != nil {
+	m.Info("Acquiring etcd migration lock")
+	if err := m.Locker.Lock(timeout(m.LockTimeout)); err != nil {
 		return err
 	}
 
-	defer func() { m.Info("Releasing lock"); m.Locker.Unlock(ctx) }()
+	defer func() { m.Info("Releasing etcd migration lock"); m.Locker.Unlock(ctx) }()
 
 	m.Info("Pausing all clients")
 	if err := m.Pause(ctx); err != nil {
@@ -70,18 +73,20 @@ func (m *migration) Run(ctx context.Context) error {
 	defer m.Resume(ctx)
 
 	m.Info("Running crm resource migrate")
-	resp, err := m.Clients[0].Migrate(timeout(5*time.Second), &Empty{})
+	resp, err := m.Clients[0].Migrate(timeout(m.PacemakerTimeout), &Empty{})
+
+	// We should schedule a resource unmigrate regardless of if there was an error, as we
+	// don't know after timing out whether the migration constraint has been applied.
+	defer func() {
+		m.Info("Running crm resource unmigrate")
+		if _, err := m.Clients[0].Unmigrate(ctx, &Empty{}); err != nil {
+			m.WithError(err).Error("Failed to unmigrate, manual action required")
+		}
+	}()
 
 	if err != nil {
 		return err
 	}
-
-	defer func() {
-		m.Info("Running crm resource unmigrate")
-		if _, err := m.Clients[0].Unmigrate(ctx, &Empty{}); err != nil {
-			m.WithError(err).Error("Failed to migrate, manual action required")
-		}
-	}()
 
 	select {
 	case <-time.After(m.PauseExpiry):
@@ -95,8 +100,17 @@ func (m *migration) Run(ctx context.Context) error {
 
 func (m *migration) HealthCheck(ctx context.Context) error {
 	return m.Batch(func(client MigrationClient) error {
-		_, err := client.HealthCheck(ctx, &Empty{})
-		return err
+		resp, err := client.HealthCheck(ctx, &Empty{})
+
+		if err != nil {
+			return err
+		}
+
+		if status := resp.GetStatus(); status != HealthCheckResponse_HEALTHY {
+			return fmt.Errorf("Received non-healthy response: %s", status.String())
+		}
+
+		return nil
 	})
 }
 

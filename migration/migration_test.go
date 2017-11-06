@@ -15,12 +15,15 @@ import (
 
 func DefaultConfig(client etcdClient) MigrationConfig {
 	return MigrationConfig{
-		Logger:        debugLogger(),
-		Etcd:          client,
-		EtcdMasterKey: "/master",
-		Clients:       []MigrationClient{},
-		PauseTimeout:  5 * time.Second,
-		PauseExpiry:   5 * time.Second,
+		Logger:             debugLogger(),
+		Etcd:               client,
+		EtcdMasterKey:      "/master",
+		Clients:            []MigrationClient{},
+		HealthCheckTimeout: 2 * time.Second,
+		LockTimeout:        2 * time.Second,
+		PauseTimeout:       5 * time.Second,
+		PauseExpiry:        25 * time.Second,
+		PacemakerTimeout:   5 * time.Second,
 	}
 }
 

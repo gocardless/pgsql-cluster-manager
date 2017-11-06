@@ -15,8 +15,9 @@ message Empty {} // for all null requests
 
 message HealthCheckResponse {
   enum Status {
-    HEALTHY = 0;
-    UNKNOWN = 1;
+    UNKNOWN = 0;
+    HEALTHY = 1;
+    UNHEALTHY = 2;
   }
 
   Status status = 1;
