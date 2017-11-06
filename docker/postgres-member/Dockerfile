@@ -14,6 +14,11 @@ RUN cp -v /etc/pgbouncer/pgbouncer.ini.template /etc/pgbouncer/pgbouncer.ini
 
 COPY corosync/authkey /etc/corosync/
 COPY resource_agents/pgsql /usr/lib/ocf/resource.d/heartbeat/
+COPY stonith/docker /usr/lib/stonith/plugins/external/
+# Pacemaker refuses to run stonith resources that have open permissions to group
+# and other, and while this is executable in the git repository you can't
+# specify permissions for group/other.
+RUN chmod 700 /usr/lib/stonith/plugins/external/docker
 
 COPY start-cluster.bash /bin/start-cluster
 

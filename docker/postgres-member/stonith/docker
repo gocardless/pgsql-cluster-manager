@@ -1,0 +1,59 @@
+#!/bin/sh
+# Simple stonith resource that can kill a node by issuing a docker kill command
+# through the standard docker cli. It is required that the host docker socket be
+# mounted into the container.
+#
+# This is not a proper stonith resource- the only real functionality here is to
+# kill the target container, which is enough for our simulation needs.
+
+ACTION="$1"
+
+log() {
+  echo "[$(date)] [server_id=$server_id] [1=$ACTION]" "${@}" >>/var/log/docker-stonith
+}
+
+print_metadata() {
+  cat <<EOF
+<parameters>
+  <parameter name="server_id" unique="0">
+    <content type="string" />
+    <shortdesc lang="en">ID of container to kill</shortdesc>
+  </parameter>
+</parameters>
+EOF
+}
+
+server_kill() {
+  docker kill -s 9 "$server_id"
+}
+
+server_monitor() {
+  if docker ps | grep "$server_id"; then
+    return 0
+  elif docker ps -a | grep "$server_id"; then
+    return 2
+  fi
+
+  return 1
+}
+
+log "Running stonith..."
+
+case "$1" in
+  on)               exit 0;;
+  status)           exit 0;;
+
+  meta-data)        print_metadata    && exit $?;;
+  getconfignames)   echo "server_id"  && exit $?;;
+  gethosts)         echo "$server_id" && exit $?;;
+  reset)            server_kill       && exit $?;;
+  off)              server_kill       && exit $?;;
+  monitor)          server_monitor    && exit $?;;
+
+  getinfo-devdescr) echo "Stonith resource for docker"; exit 0;;
+  getinfo-devid)    echo "Docker"; exit 0;;
+  getinfo-devurl)   echo "github.com/gocardless/pgsql-cluster-manager"; exit 0;;
+  getinfo-xml)      print_metadata; exit 0;;
+esac
+
+log "Can't handle this action"

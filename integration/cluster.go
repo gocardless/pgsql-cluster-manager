@@ -154,6 +154,7 @@ func StartCluster(t *testing.T, ctx context.Context) *Cluster {
 			HostConfig: &docker.HostConfig{
 				Binds: []string{
 					fmt.Sprintf("%s:/pgsql-cluster-manager", workspaceDirectory),
+					"/var/run/docker.sock:/var/run/docker.sock",
 				},
 				Privileged:      true,
 				PublishAllPorts: true,
@@ -200,14 +201,10 @@ func StartCluster(t *testing.T, ctx context.Context) *Cluster {
 	pg02 := createMember("pg02", workspaceDirectory)
 	pg03 := createMember("pg03", workspaceDirectory)
 
-	ips := []string{
-		pg01.NetworkSettings.IPAddress,
-		pg02.NetworkSettings.IPAddress,
-		pg03.NetworkSettings.IPAddress,
-	}
+	ids := []string{pg01.ID, pg02.ID, pg03.ID}
 
 	startMember := func(node *docker.Container) {
-		_, err := dockerExecutor{client, node}.CombinedOutput("/bin/start-cluster", ips...)
+		_, err := dockerExecutor{client, node}.CombinedOutput("/bin/start-cluster", ids...)
 		require.Nil(t, err)
 	}
 

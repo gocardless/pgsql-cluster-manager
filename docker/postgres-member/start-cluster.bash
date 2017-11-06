@@ -7,9 +7,14 @@ set -eu
 
 [[ -t 1 ]] || exec >/var/log/start-cluster.log 2>&1
 
-PG01="$1"
-PG02="$2"
-PG03="$3"
+# container_ip <id>
+function container_ip() {
+  docker inspect -f '{{ .NetworkSettings.IPAddress }}' $1
+}
+
+PG01="$1"; PG01_IP="$(container_ip "$PG01")"
+PG02="$2"; PG02_IP="$(container_ip "$PG02")"
+PG03="$3"; PG03_IP="$(container_ip "$PG03")"
 
 HOST="$(hostname -i | awk '{print $1}')"
 
@@ -39,15 +44,15 @@ totem {
 
 nodelist {
         node {
-                ring0_addr: ${PG01}
+                ring0_addr: ${PG01_IP}
                 nodeid: 1
         }
         node {
-                ring0_addr: ${PG02}
+                ring0_addr: ${PG02_IP}
                 nodeid: 2
         }
         node {
-                ring0_addr: ${PG03}
+                ring0_addr: ${PG03_IP}
                 nodeid: 3
         }
 }
@@ -97,10 +102,10 @@ function wait_for_quorum() {
   echo " done!"
 }
 
-function configure_corosync() {
-  echo "Configuring corosync"
+function configure_pacemaker() {
+  echo "Configuring pacemaker"
   cat <<EOF | crm configure
-property stonith-enabled=false
+property stonith-enabled=true
 property default-resource-stickiness=100
 primitive Postgresql ocf:heartbeat:pgsql \
     params pgctl="/usr/lib/postgresql/9.4/bin/pg_ctl" psql="/usr/bin/psql" \
@@ -117,6 +122,12 @@ primitive Postgresql ocf:heartbeat:pgsql \
     op stop timeout="60s" interval="0s" on-fail="block" \
     op notify timeout="60s" interval="0s"
 ms msPostgresql Postgresql params master-max=1 master-node-max=1 clone-max=3 clone-node-max=1 notify=true
+primitive shoot-pg01 stonith:external/docker params server_id="$PG01"
+location fence_pg01 shoot-pg01 -inf: pg01
+primitive shoot-pg02 stonith:external/docker params server_id="$PG02"
+location fence_pg02 shoot-pg02 -inf: pg02
+primitive shoot-pg03 stonith:external/docker params server_id="$PG03"
+location fence_pg03 shoot-pg03 -inf: pg03
 commit
 end
 EOF
@@ -136,9 +147,9 @@ function wait_for_roles() {
 
 function configure_dns() {
   cat <<EOF >>/etc/hosts
-$PG01 pg01
-$PG02 pg02
-$PG03 pg03
+$PG01_IP pg01
+$PG02_IP pg02
+$PG03_IP pg03
 EOF
 }
 
@@ -151,7 +162,7 @@ function start_etcd() {
     --initial-advertise-peer-urls "http://$HOST:2380" \
     --listen-client-urls http://0.0.0.0:2379 \
     --advertise-client-urls http://0.0.0.0:2379 \
-    --initial-cluster "pg01=http://$PG01:2380,pg02=http://$PG02:2380,pg03=http://$PG03:2380" \
+    --initial-cluster "pg01=http://$PG01_IP:2380,pg02=http://$PG02_IP:2380,pg03=http://$PG03_IP:2380" \
     --initial-cluster-token "some-randomness" \
     --initial-cluster-state new \
     >>/var/log/etcd.log 2>&1 &
@@ -195,8 +206,8 @@ EOF
 start_corosync
 wait_for_quorum
 
-if [ "$(hostname -i)" == "$PG01" ]; then
-  configure_corosync
+if [ "$(hostname -i)" == "$PG01_IP" ]; then
+  configure_pacemaker
 fi
 
 wait_for_roles
