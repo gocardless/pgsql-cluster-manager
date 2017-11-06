@@ -3,6 +3,7 @@ package command
 import (
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -29,6 +30,12 @@ var (
 )
 
 func init() {
+	// Configure viper so that command-line flags are used as a priority, followed by
+	// environment variables, followed by the supplied defaults
+	viper.AutomaticEnv()
+	viper.SetEnvPrefix("pgsql")
+	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
+
 	flags := PgsqlCommand.PersistentFlags()
 
 	// We always need an etcd connection, so these flags are for all commands
