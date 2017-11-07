@@ -189,6 +189,9 @@ mkdir /var/log/pgsql
   --etcd-namespace /postgres \
   >>/var/log/pgsql/cluster.log 2>&1 &
 
+/usr/local/bin/pgsql-cluster-manager supervise migration \
+  >>/var/log/pgsql/migration.log 2>&1 &
+
 sudo -u postgres \
   /usr/local/bin/pgsql-cluster-manager supervise proxy \
     --etcd-namespace /postgres \

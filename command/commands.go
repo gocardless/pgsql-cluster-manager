@@ -9,6 +9,7 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/coreos/etcd/clientv3"
+	"github.com/coreos/etcd/clientv3/concurrency"
 	"github.com/coreos/etcd/clientv3/namespace"
 	"github.com/gocardless/pgsql-cluster-manager/pgbouncer"
 	"github.com/spf13/cobra"
@@ -51,6 +52,7 @@ func init() {
 	viper.BindPFlag("log-level", flags.Lookup("log-level"))
 
 	PgsqlCommand.AddCommand(NewSuperviseCommand())
+	PgsqlCommand.AddCommand(NewMigrateCommand())
 	PgsqlCommand.AddCommand(NewVersionCommand())
 
 	cobra.OnInitialize(ConfigureLogger)
@@ -98,6 +100,16 @@ func EtcdClientOrExit() *clientv3.Client {
 	client.Lease = namespace.NewLease(client.Lease, ns)
 
 	return client
+}
+
+func EtcdSessionOrExit(client *clientv3.Client) *concurrency.Session {
+	session, err := concurrency.NewSession(client)
+
+	if err != nil {
+		logger.WithError(err).Fatal("Failed to create etcd session")
+	}
+
+	return session
 }
 
 func PGBouncerOrExit() pgbouncer.PGBouncer {

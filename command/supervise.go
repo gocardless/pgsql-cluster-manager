@@ -2,9 +2,13 @@ package command
 
 import (
 	"context"
+	"net"
 	"time"
 
+	"google.golang.org/grpc"
+
 	"github.com/gocardless/pgsql-cluster-manager/etcd"
+	"github.com/gocardless/pgsql-cluster-manager/migration"
 	"github.com/gocardless/pgsql-cluster-manager/pacemaker"
 	"github.com/gocardless/pgsql-cluster-manager/pgbouncer"
 	"github.com/spf13/cobra"
@@ -19,6 +23,7 @@ func NewSuperviseCommand() *cobra.Command {
 
 	sc.AddCommand(newSuperviseProxyCommand())
 	sc.AddCommand(newSuperviseClusterCommand())
+	sc.AddCommand(newSuperviseMigrationCommand())
 
 	return sc
 }
@@ -101,4 +106,74 @@ func superviseClusterCommandFunc(cmd *cobra.Command, args []string) {
 	// We should only update the key if it's changed- Updater provides idempotent updates
 	crmSub.AddHandler(etcdHostKey, &etcd.Updater{client})
 	crmSub.Start(ctx)
+}
+
+var migrationLongDescription = `
+Provides an API that issues migration commands, used to perform zero-downtime
+migrations. The full API is specified in migration/migration.proto.
+
+service Migration {
+	// Verifies communication with service
+	rpc health_check(Empty) returns (HealthCheckResponse) {}
+
+	// Causes PGBouncer to pause on the host, cancelling the pause if we exceed
+	// timeout and automatically resuming after expiry seconds.
+	rpc pause(PauseRequest) returns (PauseResponse) {}
+
+	// Causes PGBouncer to immediately resume, removing any active pauses.
+	rpc resume(Empty) returns (ResumeResponse) {}
+
+	// Creates a migration from the current Postgres primary to the eligible sync
+	// node. This is achieved by issuing a crm resource migrate.
+	rpc migrate(Empty) returns (MigrateResponse) {}
+}
+`
+
+func newSuperviseMigrationCommand() *cobra.Command {
+	sm := &cobra.Command{
+		Use:   "migration [options]",
+		Short: "Run on cluster node, provides migration API",
+		Long:  migrationLongDescription,
+		Run:   superviseMigrationCommandFunc,
+	}
+
+	flags := sm.Flags()
+
+	flags.String("bind-address", ":8080", "Bind API to this addr")
+	viper.BindPFlag("bind-address", flags.Lookup("bind-address"))
+
+	return sm
+}
+
+func superviseMigrationCommandFunc(cmd *cobra.Command, args []string) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	bouncer := PGBouncerOrExit()
+	cib := pacemaker.NewCib()
+	bindAddr := viper.GetString("bind-address")
+
+	HandleQuitSignal("cleaning context and exiting...", cancel)
+
+	listen, err := net.Listen("tcp", bindAddr)
+	if err != nil {
+		logger.WithError(err).WithField("addr", bindAddr).Error("Failed to bind to address")
+		return
+	}
+
+	server := migration.NewServer(
+		migration.WithServerLogger(logger),
+		migration.WithPGBouncer(bouncer),
+		migration.WithCib(cib),
+	)
+
+	grpcServer := grpc.NewServer()
+	migration.RegisterMigrationServer(grpcServer, server)
+
+	go func() { <-ctx.Done(); grpcServer.GracefulStop() }()
+
+	logger.Infof("Starting server, bound to %s", bindAddr)
+	if err := grpcServer.Serve(listen); err != nil {
+		logger.WithError(err).Error("Server failed with error")
+	}
 }
