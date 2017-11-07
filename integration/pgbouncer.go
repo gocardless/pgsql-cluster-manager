@@ -34,9 +34,9 @@ func StartPGBouncer(t *testing.T, ctx context.Context) *PGBouncerProcess {
 	configFileTemplate := filepath.Join(workspace, "pgbouncer.ini.template")
 	authFile := filepath.Join(workspace, "users.txt")
 
-	// We need to allow the postgres user for our tests
+	// We need to allow the pgbouncer user for our tests
 	err = ioutil.WriteFile(authFile, []byte(`
-	"postgres" "this_matters_not_as_we_trust"
+	"pgbouncer" "this_matters_not_as_we_trust"
 	`), 0644)
 
 	require.Nil(t, err)
@@ -56,7 +56,7 @@ listen_port = 6432
 unix_socket_dir = %s
 auth_type = trust
 auth_file = %s/users.txt
-admin_users = postgres
+admin_users = postgres,pgbouncer
 pool_mode = session
 ignore_startup_parameters = extra_float_digits`, workspace, workspace)),
 			0644,

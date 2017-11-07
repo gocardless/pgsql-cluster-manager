@@ -74,7 +74,7 @@ func (e pgbouncerExecutor) connectionString() (string, error) {
 	}
 
 	return fmt.Sprintf(
-		"user=postgres dbname=pgbouncer connect_timeout=1 host=%s port=%s",
+		"user=pgbouncer dbname=pgbouncer connect_timeout=1 host=%s port=%s",
 		socketDir,
 		port,
 	), err
