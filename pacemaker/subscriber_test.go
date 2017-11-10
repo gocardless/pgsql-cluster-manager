@@ -7,16 +7,16 @@ import (
 
 	"golang.org/x/net/context"
 
-	"github.com/beevik/etree"
 	"github.com/Sirupsen/logrus"
+	"github.com/beevik/etree"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
-type fakeCib struct{ mock.Mock }
+type fakePacemaker struct{ mock.Mock }
 
-func (c fakeCib) Get(xpaths ...string) ([]*etree.Element, error) {
-	args := c.Called(xpaths)
+func (c fakePacemaker) Get(ctx context.Context, xpaths ...string) ([]*etree.Element, error) {
+	args := c.Called(ctx, xpaths)
 	return args.Get(0).([]*etree.Element), args.Error(1)
 }
 
@@ -143,14 +143,15 @@ func TestStart(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			// Stub cib to expect the given tc.getParams, returning tc.getResults.
-			cib := new(fakeCib)
+			// Stub pacemaker to expect the given tc.getParams, returning tc.getResults.
+			p := new(fakePacemaker)
 			for _, results := range tc.getResults {
-				cib.On("Get", tc.getParams).Return(results, nil).Once()
+				p.On("Get", mock.AnythingOfType("*context.timerCtx"), tc.getParams).Return(results, nil).Once()
 			}
 
 			// This last stub will cancel our context, causing the watch to come to an end
-			cib.On("Get", tc.getParams).Return(tc.getResults[len(tc.getResults)-1], nil).
+			p.On("Get", mock.AnythingOfType("*context.timerCtx"), tc.getParams).
+				Return(tc.getResults[len(tc.getResults)-1], nil).
 				Run(func(args mock.Arguments) {
 					cancel()
 				})
@@ -165,7 +166,7 @@ func TestStart(t *testing.T) {
 				logger.Level = logrus.DebugLevel
 
 				s := subscriber{
-					cib:       cib,
+					pacemaker: p,
 					logger:    logger,
 					nodes:     tc.nodes,
 					handlers:  tc.handlers,

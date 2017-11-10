@@ -150,7 +150,7 @@ func superviseMigrationCommandFunc(cmd *cobra.Command, args []string) {
 	defer cancel()
 
 	bouncer := PGBouncerOrExit()
-	cib := pacemaker.NewCib()
+	crm := pacemaker.NewPacemaker()
 	bindAddr := viper.GetString("bind-address")
 
 	HandleQuitSignal("cleaning context and exiting...", cancel)
@@ -164,7 +164,7 @@ func superviseMigrationCommandFunc(cmd *cobra.Command, args []string) {
 	server := migration.NewServer(
 		migration.WithServerLogger(logger),
 		migration.WithPGBouncer(bouncer),
-		migration.WithCib(cib),
+		migration.WithPacemaker(crm),
 	)
 
 	grpcServer := grpc.NewServer()

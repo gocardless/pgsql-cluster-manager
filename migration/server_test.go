@@ -40,20 +40,20 @@ func (c fakeClock) Until(t time.Time) time.Duration {
 	return args.Get(0).(time.Duration)
 }
 
-type fakeCib struct{ mock.Mock }
+type fakeCrm struct{ mock.Mock }
 
-func (c fakeCib) Get(xpaths ...string) ([]*etree.Element, error) {
-	args := c.Called(xpaths)
+func (c fakeCrm) Get(ctx context.Context, xpaths ...string) ([]*etree.Element, error) {
+	args := c.Called(ctx, xpaths)
 	return args.Get(0).([]*etree.Element), args.Error(1)
 }
 
-func (c fakeCib) Migrate(to string) error {
-	args := c.Called(to)
+func (c fakeCrm) Migrate(ctx context.Context, to string) error {
+	args := c.Called(ctx, to)
 	return args.Error(0)
 }
 
-func (c fakeCib) Unmigrate() error {
-	args := c.Called()
+func (c fakeCrm) Unmigrate(ctx context.Context) error {
+	args := c.Called(ctx)
 	return args.Error(0)
 }
 
@@ -143,7 +143,7 @@ func createElement(uname string) *etree.Element {
 func TestMigrate(t *testing.T) {
 	testCases := []struct {
 		name          string
-		cibError      error
+		crmError      error
 		syncElement   *etree.Element
 		shouldMigrate bool
 		migrateTo     string // empty string means don't migrate
@@ -152,7 +152,7 @@ func TestMigrate(t *testing.T) {
 	}{
 		{
 			name:          "when successfull",
-			cibError:      nil,
+			crmError:      nil,
 			syncElement:   createElement("pg03"),
 			shouldMigrate: true,
 			migrateTo:     "pg03",
@@ -160,8 +160,8 @@ func TestMigrate(t *testing.T) {
 			responseError: nil,
 		},
 		{
-			name:          "when cib query fails",
-			cibError:      errors.New("oops"),
+			name:          "when crm query fails",
+			crmError:      errors.New("oops"),
 			syncElement:   nil,
 			shouldMigrate: false,
 			migrateTo:     "",
@@ -170,7 +170,7 @@ func TestMigrate(t *testing.T) {
 		},
 		{
 			name:          "when no sync node is found",
-			cibError:      nil,
+			crmError:      nil,
 			syncElement:   nil,
 			shouldMigrate: false,
 			migrateTo:     "",
@@ -178,8 +178,8 @@ func TestMigrate(t *testing.T) {
 			responseError: status.Errorf(codes.NotFound, "failed to find sync node"),
 		},
 		{
-			name:          "when cib migration fails",
-			cibError:      nil,
+			name:          "when crm migration fails",
+			crmError:      nil,
 			syncElement:   createElement("pg03"),
 			shouldMigrate: true,
 			migrateTo:     "pg03",
@@ -195,19 +195,21 @@ func TestMigrate(t *testing.T) {
 			clock := new(fakeClock)
 			clock.On("Now").Return(time.Now())
 
-			cib := new(fakeCib)
-			defer cib.AssertExpectations(t)
+			crm := new(fakeCrm)
+			defer crm.AssertExpectations(t)
 
-			cib.
-				On("Get", []string{pacemaker.SyncXPath}).
-				Return([]*etree.Element{tc.syncElement}, tc.cibError)
+			bgCtx := context.Background()
+
+			crm.
+				On("Get", bgCtx, []string{pacemaker.SyncXPath}).
+				Return([]*etree.Element{tc.syncElement}, tc.crmError)
 
 			if tc.shouldMigrate {
-				cib.On("Migrate", tc.migrateTo).Return(tc.migrateError)
+				crm.On("Migrate", bgCtx, tc.migrateTo).Return(tc.migrateError)
 			}
 
-			server := NewServer(WithCib(cib), WithClock(clock))
-			_, err := server.Migrate(context.Background(), nil)
+			server := NewServer(WithPacemaker(crm), WithClock(clock))
+			_, err := server.Migrate(bgCtx, nil)
 
 			assert.EqualValues(t, tc.responseError, err)
 		})

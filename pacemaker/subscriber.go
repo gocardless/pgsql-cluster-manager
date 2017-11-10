@@ -5,17 +5,18 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/beevik/etree"
 	"github.com/Sirupsen/logrus"
+	"github.com/beevik/etree"
 	"golang.org/x/net/context"
 )
 
 type subscriber struct {
-	cib
-	logger    *logrus.Logger
-	handlers  map[string]handler
-	nodes     []*crmNode
-	newTicker func() *time.Ticker
+	pacemaker
+	logger           *logrus.Logger
+	handlers         map[string]handler
+	nodes            []*crmNode
+	newTicker        func() *time.Ticker
+	pacemakerTimeout time.Duration
 }
 
 // crmNode represents an element in the pacemaker cib XML, selected using the given XPath,
@@ -27,8 +28,8 @@ type crmNode struct {
 	value     string // stored value previously associated with this node
 }
 
-type cib interface {
-	Get(...string) ([]*etree.Element, error)
+type pacemaker interface {
+	Get(context.Context, ...string) ([]*etree.Element, error)
 }
 
 type handler interface {
@@ -67,10 +68,11 @@ func NewSubscriber(options ...func(*subscriber)) *subscriber {
 	nullLogger.Out = ioutil.Discard
 
 	s := &subscriber{
-		cib:      NewCib(),             // required to be less than the ticker
-		logger:   nullLogger,           // for ease of use, default to using a null logger
-		nodes:    []*crmNode{},         // start with an empty node list
-		handlers: map[string]handler{}, // use AddHandler to add handlers
+		pacemaker:        NewPacemaker(),
+		logger:           nullLogger,             // for ease of use, default to using a null logger
+		nodes:            []*crmNode{},           // start with an empty node list
+		handlers:         map[string]handler{},   // use AddHandler to add handlers
+		pacemakerTimeout: 250 * time.Millisecond, // must be shorter than ticket interval
 		newTicker: func() *time.Ticker {
 			return time.NewTicker(500 * time.Millisecond) // 500ms provides frequent updates
 		},
@@ -133,11 +135,15 @@ func (s *subscriber) watch(ctx context.Context) chan *crmNode {
 		for {
 			select {
 			case <-ticker.C:
-				s.logger.Debug("Polling cib...")
+				s.logger.Debug("Polling pacemaker cib...")
 
-				if err := s.updateNodes(watchChan); err != nil {
+				timeoutCtx, cancel := context.WithTimeout(ctx, s.pacemakerTimeout)
+
+				if err := s.updateNodes(timeoutCtx, watchChan); err != nil {
 					s.logger.WithError(err).Error("Failed to update nodes")
 				}
+
+				cancel()
 			case <-ctx.Done():
 				return
 			}
@@ -149,8 +155,8 @@ func (s *subscriber) watch(ctx context.Context) chan *crmNode {
 
 // updateNodes queries crm to find current node values, updates the value on each node and
 // sends nodes that have been updated down the given channel.
-func (s *subscriber) updateNodes(updated chan *crmNode) error {
-	elements, err := s.cib.Get(s.xpaths()...)
+func (s *subscriber) updateNodes(ctx context.Context, updated chan *crmNode) error {
+	elements, err := s.pacemaker.Get(ctx, s.xpaths()...)
 
 	if err != nil {
 		return err
