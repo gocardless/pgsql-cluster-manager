@@ -72,6 +72,50 @@ func TestGet(t *testing.T) {
 	}
 }
 
+func TestResolveAddress(t *testing.T) {
+	testCases := []struct {
+		name            string
+		execOutput      []byte
+		execErr         error
+		expectedAddress string
+		expectedErr     error
+	}{
+		{
+			"when corosync-cfgtool returns no error",
+			[]byte("172.17.0.4\n"),
+			nil,
+			"172.17.0.4",
+			nil,
+		},
+		{
+			"when corosync-cfgtool returns an error",
+			[]byte(""),
+			errors.New("exec: \"corosync-cfgtool\": executable file not found in $PATH"),
+			"",
+			errors.New("failed to run corosync-cfgtool: exec: \"corosync-cfgtool\": executable file not found in $PATH"),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			bgCtx := context.Background()
+
+			executor := new(fakeExecutor)
+			executor.
+				On("CombinedOutput", bgCtx, "corosync-cfgtool", []string{"-a", "1"}).
+				Return(tc.execOutput, tc.execErr)
+
+			address, err := Pacemaker{executor}.ResolveAddress(bgCtx, "1")
+
+			if err != nil {
+				assert.EqualValues(t, tc.expectedErr.Error(), err.Error())
+			}
+			assert.EqualValues(t, tc.expectedAddress, address)
+			executor.AssertExpectations(t)
+		})
+	}
+}
+
 func TestMigrate(t *testing.T) {
 	testCases := []struct {
 		name    string
