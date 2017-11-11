@@ -2,6 +2,7 @@ package pacemaker
 
 import (
 	"os/exec"
+	"strings"
 
 	"github.com/pkg/errors"
 	"golang.org/x/net/context"
@@ -74,6 +75,19 @@ func (p Pacemaker) Get(ctx context.Context, xpaths ...string) ([]*etree.Element,
 	}
 
 	return nodes, nil
+}
+
+// ResolveAddress will find the IP address for a given node ID. Node IDs are numeric, but
+// we'll typically extract them from XML that will yield strings. Given we'll be passing
+// them as string executable arguments it makes sense to keep everything homomorphic.
+func (p Pacemaker) ResolveAddress(ctx context.Context, nodeID string) (string, error) {
+	output, err := p.CombinedOutput(ctx, "corosync-cfgtool", "-a", nodeID)
+
+	if err != nil {
+		return "", errors.Wrap(err, "failed to run corosync-cfgtool")
+	}
+
+	return strings.TrimSpace(string(output)), nil
 }
 
 // Migrate will issue a resource migration of msPostgresql to the given node
