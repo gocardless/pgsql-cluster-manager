@@ -170,6 +170,7 @@ func TestStart(t *testing.T) {
 					logger:    logger,
 					nodes:     tc.nodes,
 					handlers:  tc.handlers,
+					transform: defaultTransform,
 					newTicker: func() *time.Ticker { return ticker },
 				}
 
