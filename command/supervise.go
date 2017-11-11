@@ -99,7 +99,8 @@ func superviseClusterCommandFunc(cmd *cobra.Command, args []string) {
 
 	// Watch for changes to master node, calling the handler registered on the host key
 	crmSub := pacemaker.NewSubscriber(
-		pacemaker.WatchNode(etcdHostKey, masterCrmXPath, "uname"),
+		pacemaker.WatchNode(etcdHostKey, masterCrmXPath, "id"),
+		pacemaker.WithTransform(pacemaker.NewPacemaker().ResolveAddress),
 		pacemaker.WithLogger(logger),
 	)
 

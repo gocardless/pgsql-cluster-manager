@@ -16,6 +16,7 @@ type subscriber struct {
 	handlers         map[string]handler
 	nodes            []*crmNode
 	newTicker        func() *time.Ticker
+	transform        func(context.Context, string) (string, error)
 	pacemakerTimeout time.Duration
 }
 
@@ -61,6 +62,19 @@ func WithLogger(logger *logrus.Logger) func(*subscriber) {
 	}
 }
 
+// WithTransform allows application of a general function to the values that are observed
+// to change. This can be used, for example, to resolve IP addresses from node names when
+// watching for changes in cluster roles.
+func WithTransform(transform func(context.Context, string) (string, error)) func(*subscriber) {
+	return func(s *subscriber) {
+		s.transform = transform
+	}
+}
+
+var defaultTransform = func(ctx context.Context, value string) (string, error) {
+	return value, nil // by default, don't transform values
+}
+
 // NewSubscriber constructs a default subscriber configured to watch specific XML nodes
 // inside the cib state.
 func NewSubscriber(options ...func(*subscriber)) *subscriber {
@@ -73,6 +87,7 @@ func NewSubscriber(options ...func(*subscriber)) *subscriber {
 		nodes:            []*crmNode{},           // start with an empty node list
 		handlers:         map[string]handler{},   // use AddHandler to add handlers
 		pacemakerTimeout: 250 * time.Millisecond, // must be shorter than ticket interval
+		transform:        defaultTransform,
 		newTicker: func() *time.Ticker {
 			return time.NewTicker(500 * time.Millisecond) // 500ms provides frequent updates
 		},
@@ -168,6 +183,11 @@ func (s *subscriber) updateNodes(ctx context.Context, updated chan *crmNode) err
 		}
 
 		value := elements[idx].SelectAttrValue(node.Attribute, "")
+		value, err := s.transform(ctx, value)
+
+		if err != nil {
+			return err
+		}
 
 		if node.value != value {
 			node.value = value
