@@ -7,6 +7,10 @@ set -eu
 
 [[ -t 1 ]] || exec >/var/log/start-cluster.log 2>&1
 
+function log() {
+  echo "[$(date)] $1"
+}
+
 # container_ip <id>
 function container_ip() {
   docker inspect -f '{{ .NetworkSettings.IPAddress }}' $1
@@ -19,7 +23,7 @@ PG03="$3"; PG03_IP="$(container_ip "$PG03")"
 HOST="$(hostname -i | awk '{print $1}')"
 
 function start_corosync() {
-  echo "Generating corosync config"
+  log "Generating corosync config"
   cat <<EOF > /etc/corosync/corosync.conf
 totem {
         version: 2
@@ -89,21 +93,21 @@ EOF
   chown root:root /etc/corosync/corosync.conf
   chmod 644 /etc/corosync/corosync.conf
 
-  echo "Starting corosync/pacemaker"
+  log "Starting corosync/pacemaker"
   corosync # this starts corosync in the background
   service pacemaker start
 }
 
 function wait_for_quorum() {
-  echo -n "Waiting for quorum..."
+  log -n "Waiting for quorum..."
   until crm status | grep -q '3 Nodes configured'; do
       sleep 1 && printf "."
   done
-  echo " done!"
+  log " done!"
 }
 
 function configure_pacemaker() {
-  echo "Configuring pacemaker"
+  log "Configuring pacemaker"
   cat <<EOF | crm configure
 property stonith-enabled=true
 property default-resource-stickiness=100
@@ -134,9 +138,9 @@ EOF
 }
 
 function wait_for_roles() {
-  echo "Waiting for master/sync/async..."
+  log "Waiting for master/sync/async..."
   while true; do
-    echo "[$(date)] Polling..."
+    log "[$(date)] Polling..."
     (crm node list | grep 'LATEST') && \
       (crm node list | grep 'STREAMING|POTENTIAL') && \
       (crm node list | grep 'STREAMING|SYNC') && \
@@ -154,7 +158,7 @@ EOF
 }
 
 function start_etcd() {
-  echo "Starting etcd"
+  log "Starting etcd"
   /usr/bin/etcd \
     --name "$(hostname)" \
     --data-dir /tmp \
@@ -173,12 +177,12 @@ function start_etcd() {
 }
 
 function start_pgbouncer() {
-  echo "Starting PGBouncer"
+  log "Starting PGBouncer"
   service pgbouncer start
 }
 
 function start_cluster_manager() {
-  echo "Installing pgsql-cluster-manager"
+  log "Installing pgsql-cluster-manager"
   dpkg -i /pgsql-cluster-manager/pgsql-cluster-manager*.deb
   cat <<EOF > /usr/local/bin/pgsql-cluster-manager.sh
 #!/bin/bash
@@ -219,4 +223,4 @@ start_etcd
 start_pgbouncer
 start_cluster_manager
 
-echo "Cluster is running"
+log "Cluster is running"

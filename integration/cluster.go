@@ -20,7 +20,7 @@ import (
 )
 
 var networkTimeout = 10 * time.Second // wait for docker to allocate IPs
-var startTimeout = 2 * time.Minute    // wait for cluster to define master/sync/async
+var startTimeout = 3 * time.Minute    // wait for cluster to define master/sync/async
 
 // Cluster wraps three postgres cluster members, providing the Roles method to inspect the
 // roles of each node.

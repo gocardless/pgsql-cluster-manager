@@ -23,9 +23,6 @@ func TestIntegration(t *testing.T) {
 
 	fmt.Println("creating cluster...")
 	cluster := StartCluster(t, ctx)
-	defer cluster.Shutdown()
-
-	client := cluster.EtcdClient(t)
 
 	outputFile := func(path string) {
 		contents, err := cluster.Executor().CombinedOutput("cat", path)
@@ -41,6 +38,11 @@ func TestIntegration(t *testing.T) {
 		outputFile("/var/log/start-cluster.log")
 		outputFile("/var/log/postgresql/pgbouncer.log")
 	}
+
+	defer cluster.Shutdown()
+	defer dumpLogs() // print log whatever happens
+
+	client := cluster.EtcdClient(t)
 
 	openPGBouncer := func(container *docker.Container) (*sql.DB, error) {
 		host := cluster.Hostname(t)
@@ -63,7 +65,6 @@ func TestIntegration(t *testing.T) {
 		for {
 			select {
 			case <-timeout:
-				dumpLogs()
 				require.Fail(t, fmt.Sprintf("timed out connecting to PGBouncer: %s", err.Error()))
 			default:
 				if conn, err := openPGBouncer(container); err == nil {
@@ -127,7 +128,6 @@ func TestIntegration(t *testing.T) {
 		for {
 			select {
 			case <-timeout:
-				dumpLogs()
 				require.Fail(t, "timed out waiting for node to become master")
 			default:
 				if master, _, _ := cluster.Roles(); master == node {
@@ -149,7 +149,6 @@ func TestIntegration(t *testing.T) {
 		for {
 			select {
 			case <-timeout:
-				dumpLogs()
 				require.Fail(t, "timed out waiting for PGBouncer to point at new master")
 			default:
 				if inetServerAddr(conn) == node.NetworkSettings.IPAddress {
