@@ -1275,23 +1275,17 @@ user_recovery_conf() {
 }
 
 #
-# Get master node IP address- we need to do this so that we can identify which
-# IP to use for replication. In the default version of this script, it's
-# typically the case that we'd manage replication by connecting to the primary's
-# VIP, but we have no VIPs in this setup.
+# Get master node ID- we can then use this to identify the IP address of the
+# node, which indicates how we should be connecting for replication.
 #
-get_master_ip() {
-  get_node_ip "$(crm_mon -n1 | grep -PB1 "Master" | awk '{ print $3 }' | grep -Po '\d+')"
+get_master_id() {
+  cibadmin --query \
+    --xpath "//node/instance_attributes/nvpair[@value='LATEST']/../.." | \
+    perl -wnl -e '/<node.* id="(\d+)"/ and print $1'
 }
 
-#
-# get_node_ip <node-id>
-#
-get_node_ip() {
-  grep -C1 "nodeid: $1" /etc/corosync/corosync.conf \
-    | grep -oP "ring0_addr: \S+" \
-    | head -n1 \
-    | awk '{print $NF}'
+get_master_ip() {
+  corosync-cfgtool -a $(get_master_id)
 }
 
 make_recovery_conf() {
