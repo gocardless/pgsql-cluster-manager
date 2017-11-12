@@ -164,18 +164,18 @@ func TestIntegration(t *testing.T) {
 	master, sync, async := cluster.Roles(ctx)
 
 	conn := connectTo(async)
-	connectedAddr := inetServerAddr(conn)
+	connectedAddress := inetServerAddr(conn)
 
-	fmt.Printf("async node PGBouncer is proxying to %s\n", connectedAddr)
+	fmt.Printf("async node PGBouncer is proxying to %s\n", connectedAddress)
 
-	masterAddr := master.NetworkSettings.IPAddress
+	masterAddress := master.NetworkSettings.IPAddress
 
-	require.Equal(t, connectedAddr, masterAddr, "expected PGBouncer to connect to master")
+	require.Equal(t, connectedAddress, masterAddress, "expected PGBouncer to connect to master")
 
 	resp := get("/postgres/master")
 
 	require.Equal(t, 1, len(resp.Kvs), "could not find master key in etcd")
-	require.Equal(t, masterAddr, string(resp.Kvs[0].Value), "etcd master key does not equal host IP")
+	require.Equal(t, masterAddress, string(resp.Kvs[0].Value), "etcd master key does not equal host IP")
 
 	// Now we need to migrate the master to the sync. This will test whether PGBouncer
 	// on the other nodes will switch to point at the new master. We do this asynchronously
