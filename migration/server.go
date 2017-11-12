@@ -40,6 +40,7 @@ func (c realClock) Until(t time.Time) time.Duration { return time.Until(t) }
 
 type crm interface {
 	Get(context.Context, ...string) ([]*etree.Element, error)
+	ResolveAddress(context.Context, string) (string, error)
 	Migrate(context.Context, string) error
 	Unmigrate(context.Context) error
 }
@@ -141,6 +142,16 @@ func (s *migrationServer) Migrate(ctx context.Context, _ *Empty) (*MigrateRespon
 	}
 
 	syncHost := sync.SelectAttrValue("uname", "")
+	syncID := sync.SelectAttrValue("id", "")
+	syncAddress, err := s.crm.ResolveAddress(ctx, syncID)
+
+	if err != nil {
+		s.logger.WithError(err).Error("failed to resolve sync host IP address")
+		return nil, status.Errorf(
+			codes.Unknown, "failed to resolve sync host IP address: %s", err.Error(),
+		)
+	}
+
 	err = s.crm.Migrate(ctx, syncHost)
 
 	if err != nil {
@@ -152,6 +163,7 @@ func (s *migrationServer) Migrate(ctx context.Context, _ *Empty) (*MigrateRespon
 
 	return &MigrateResponse{
 		MigratingTo: syncHost,
+		Address:     syncAddress,
 		CreatedAt:   s.TimestampProto(s.Now()),
 	}, nil
 }

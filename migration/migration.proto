@@ -39,7 +39,8 @@ message ResumeResponse {
 
 message MigrateResponse {
   string migrating_to = 1;
-  google.protobuf.Timestamp created_at = 2;
+  string address = 2;
+  google.protobuf.Timestamp created_at = 3;
 }
 
 message UnmigrateResponse {

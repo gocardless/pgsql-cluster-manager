@@ -91,7 +91,7 @@ func (m *migration) Run(ctx context.Context) error {
 	select {
 	case <-time.After(m.PauseExpiry):
 		return fmt.Errorf("Timed out waiting for %s to become master", resp.MigratingTo)
-	case <-m.HasBecomeMaster(ctx, resp.MigratingTo):
+	case <-m.HasBecomeMaster(ctx, resp.Address):
 		m.WithField("master", resp.MigratingTo).Info("Successfully migrated!")
 	}
 
@@ -131,15 +131,15 @@ func (m *migration) Resume(ctx context.Context) error {
 	})
 }
 
-func (m *migration) HasBecomeMaster(ctx context.Context, migratingTo string) chan interface{} {
-	contextLogger := m.WithField("key", m.EtcdMasterKey).WithField("target", migratingTo)
-	contextLogger.Info("Watching for etcd key to update with target")
+func (m *migration) HasBecomeMaster(ctx context.Context, migratingToAddress string) chan interface{} {
+	contextLogger := m.WithField("key", m.EtcdMasterKey).WithField("target", migratingToAddress)
+	contextLogger.Info("Watching for etcd key to update with master IP address")
 
 	watchChan := m.Etcd.Watch(ctx, m.EtcdMasterKey)
 	notify := make(chan interface{}, 1)
 
 	currentValue, err := m.Etcd.Get(ctx, m.EtcdMasterKey)
-	if err == nil && len(currentValue.Kvs) == 1 && string(currentValue.Kvs[0].Value) == migratingTo {
+	if err == nil && len(currentValue.Kvs) == 1 && string(currentValue.Kvs[0].Value) == migratingToAddress {
 		notify <- struct{}{}
 		close(notify)
 
@@ -152,8 +152,8 @@ func (m *migration) HasBecomeMaster(ctx context.Context, migratingTo string) cha
 		for resp := range watchChan {
 			for _, event := range resp.Events {
 				contextLogger.WithField("value", string(event.Kv.Value)).
-					Debug("Observed change to etcd key")
-				if string(event.Kv.Value) == migratingTo {
+					Debug("etcd master key has been updated")
+				if string(event.Kv.Value) == migratingToAddress {
 					notify <- struct{}{}
 				}
 			}
