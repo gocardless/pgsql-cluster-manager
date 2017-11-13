@@ -19,12 +19,12 @@ func StartEtcd(t *testing.T, ctx context.Context) *clientv3.Client {
 		require.Fail(t, "failed to create etcd workspace: %s", err.Error())
 	}
 
-	endpointAddr, err := nextAvailableAddr()
+	endpointAddress, err := nextAvailableAddress()
 	if err != nil {
 		require.Fail(t, "failed to allocate endpoint address: %s", err.Error())
 	}
 
-	peerAddr, err := nextAvailableAddr()
+	peerAddress, err := nextAvailableAddress()
 	if err != nil {
 		require.Fail(t, "failed to allocate peer address: %s", err.Error())
 	}
@@ -33,11 +33,11 @@ func StartEtcd(t *testing.T, ctx context.Context) *clientv3.Client {
 		ctx,
 		"etcd",
 		"--data-dir", workspace,
-		"--listen-peer-urls", peerAddr,
-		"--initial-advertise-peer-urls", peerAddr,
-		"--initial-cluster", fmt.Sprintf("default=%s", peerAddr),
-		"--listen-client-urls", endpointAddr,
-		"--advertise-client-urls", endpointAddr,
+		"--listen-peer-urls", peerAddress,
+		"--initial-advertise-peer-urls", peerAddress,
+		"--initial-cluster", fmt.Sprintf("default=%s", peerAddress),
+		"--listen-client-urls", endpointAddress,
+		"--advertise-client-urls", endpointAddress,
 	)
 
 	etcd.Dir = workspace
@@ -47,7 +47,7 @@ func StartEtcd(t *testing.T, ctx context.Context) *clientv3.Client {
 	}
 
 	cfg := clientv3.Config{
-		Endpoints:   []string{endpointAddr},
+		Endpoints:   []string{endpointAddress},
 		DialTimeout: 1 * time.Second,
 	}
 
@@ -66,12 +66,12 @@ func StartEtcd(t *testing.T, ctx context.Context) *clientv3.Client {
 	}
 }
 
-func nextAvailableAddr() (string, error) {
-	var addr string
+func nextAvailableAddress() (string, error) {
+	var address string
 
 	listen, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		return addr, err
+		return address, err
 	}
 
 	defer listen.Close()

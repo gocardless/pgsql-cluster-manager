@@ -47,6 +47,11 @@ func (c fakeCrm) Get(ctx context.Context, xpaths ...string) ([]*etree.Element, e
 	return args.Get(0).([]*etree.Element), args.Error(1)
 }
 
+func (c fakeCrm) ResolveAddress(ctx context.Context, nodeID string) (string, error) {
+	args := c.Called(ctx, nodeID)
+	return args.String(0), args.Error(1)
+}
+
 func (c fakeCrm) Migrate(ctx context.Context, to string) error {
 	args := c.Called(ctx, to)
 	return args.Error(0)
@@ -137,53 +142,85 @@ func TestServerPause(t *testing.T) {
 }
 
 func createElement(uname string) *etree.Element {
-	return &etree.Element{Attr: []etree.Attr{etree.Attr{"", "uname", uname}}}
+	return &etree.Element{
+		Attr: []etree.Attr{
+			etree.Attr{"", "uname", uname},
+			etree.Attr{"", "id", "1"},
+		},
+	}
 }
 
 func TestMigrate(t *testing.T) {
 	testCases := []struct {
-		name          string
-		crmError      error
-		syncElement   *etree.Element
-		shouldMigrate bool
-		migrateTo     string // empty string means don't migrate
-		migrateError  error
-		responseError error
+		name                string
+		crmError            error
+		syncElement         *etree.Element
+		resolveAddressValue string
+		resolveAddressError error
+		shouldMigrate       bool
+		migrateTo           string // empty string means don't migrate
+		migrateAddress      string
+		migrateError        error
+		responseError       error
 	}{
 		{
-			name:          "when successfull",
-			crmError:      nil,
-			syncElement:   createElement("pg03"),
-			shouldMigrate: true,
-			migrateTo:     "pg03",
-			migrateError:  nil,
-			responseError: nil,
+			name:                "when successfull",
+			crmError:            nil,
+			syncElement:         createElement("pg03"),
+			resolveAddressValue: "172.0.1.1",
+			resolveAddressError: nil,
+			shouldMigrate:       true,
+			migrateTo:           "pg03",
+			migrateAddress:      "172.0.1.1",
+			migrateError:        nil,
+			responseError:       nil,
 		},
 		{
-			name:          "when crm query fails",
-			crmError:      errors.New("oops"),
-			syncElement:   nil,
-			shouldMigrate: false,
-			migrateTo:     "",
-			migrateError:  nil,
-			responseError: status.Errorf(codes.Unknown, "failed to query cib: oops"),
+			name:                "when crm query fails",
+			crmError:            errors.New("oops"),
+			syncElement:         nil,
+			resolveAddressValue: "172.0.1.1",
+			resolveAddressError: nil,
+			shouldMigrate:       false,
+			migrateTo:           "",
+			migrateAddress:      "172.0.1.1",
+			migrateError:        nil,
+			responseError:       status.Errorf(codes.Unknown, "failed to query cib: oops"),
 		},
 		{
-			name:          "when no sync node is found",
-			crmError:      nil,
-			syncElement:   nil,
-			shouldMigrate: false,
-			migrateTo:     "",
-			migrateError:  nil,
-			responseError: status.Errorf(codes.NotFound, "failed to find sync node"),
+			name:                "when no sync node is found",
+			crmError:            nil,
+			syncElement:         nil,
+			resolveAddressValue: "172.0.1.1",
+			resolveAddressError: nil,
+			shouldMigrate:       false,
+			migrateTo:           "",
+			migrateAddress:      "172.0.1.1",
+			migrateError:        nil,
+			responseError:       status.Errorf(codes.NotFound, "failed to find sync node"),
 		},
 		{
-			name:          "when crm migration fails",
-			crmError:      nil,
-			syncElement:   createElement("pg03"),
-			shouldMigrate: true,
-			migrateTo:     "pg03",
-			migrateError:  errors.New("cannot find crm in PATH"),
+			name:                "when unable to resolve sync node IP address",
+			crmError:            nil,
+			syncElement:         nil,
+			resolveAddressValue: "",
+			resolveAddressError: errors.New("corosync-cfgtool: not in $PATH"),
+			shouldMigrate:       false,
+			migrateTo:           "",
+			migrateAddress:      "",
+			migrateError:        nil,
+			responseError:       status.Errorf(codes.NotFound, "failed to find sync node"),
+		},
+		{
+			name:                "when crm migration fails",
+			crmError:            nil,
+			syncElement:         createElement("pg03"),
+			resolveAddressValue: "172.0.1.1",
+			resolveAddressError: nil,
+			shouldMigrate:       true,
+			migrateTo:           "pg03",
+			migrateAddress:      "172.0.1.1",
+			migrateError:        errors.New("cannot find crm in PATH"),
 			responseError: status.Errorf(
 				codes.Unknown, "'crm resource migrate pg03' failed: cannot find crm in PATH",
 			),
@@ -196,17 +233,17 @@ func TestMigrate(t *testing.T) {
 			clock.On("Now").Return(time.Now())
 
 			crm := new(fakeCrm)
-			defer crm.AssertExpectations(t)
-
 			bgCtx := context.Background()
 
 			crm.
 				On("Get", bgCtx, []string{pacemaker.SyncXPath}).
 				Return([]*etree.Element{tc.syncElement}, tc.crmError)
 
-			if tc.shouldMigrate {
-				crm.On("Migrate", bgCtx, tc.migrateTo).Return(tc.migrateError)
-			}
+			crm.
+				On("ResolveAddress", bgCtx, "1").
+				Return(tc.resolveAddressValue, tc.resolveAddressError)
+
+			crm.On("Migrate", bgCtx, tc.migrateTo).Return(tc.migrateError)
 
 			server := NewServer(WithPacemaker(crm), WithClock(clock))
 			_, err := server.Migrate(bgCtx, nil)

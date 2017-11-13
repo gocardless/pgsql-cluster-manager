@@ -99,7 +99,8 @@ func superviseClusterCommandFunc(cmd *cobra.Command, args []string) {
 
 	// Watch for changes to master node, calling the handler registered on the host key
 	crmSub := pacemaker.NewSubscriber(
-		pacemaker.WatchNode(etcdHostKey, masterCrmXPath, "uname"),
+		pacemaker.WatchNode(etcdHostKey, masterCrmXPath, "id"),
+		pacemaker.WithTransform(pacemaker.NewPacemaker().ResolveAddress),
 		pacemaker.WithLogger(logger),
 	)
 
@@ -139,7 +140,7 @@ func newSuperviseMigrationCommand() *cobra.Command {
 
 	flags := sm.Flags()
 
-	flags.String("bind-address", ":8080", "Bind API to this addr")
+	flags.String("bind-address", ":8080", "Bind API to this address")
 	viper.BindPFlag("bind-address", flags.Lookup("bind-address"))
 
 	return sm
@@ -151,13 +152,13 @@ func superviseMigrationCommandFunc(cmd *cobra.Command, args []string) {
 
 	bouncer := PGBouncerOrExit()
 	crm := pacemaker.NewPacemaker()
-	bindAddr := viper.GetString("bind-address")
+	bindAddress := viper.GetString("bind-address")
 
 	HandleQuitSignal("cleaning context and exiting...", cancel)
 
-	listen, err := net.Listen("tcp", bindAddr)
+	listen, err := net.Listen("tcp", bindAddress)
 	if err != nil {
-		logger.WithError(err).WithField("addr", bindAddr).Error("Failed to bind to address")
+		logger.WithError(err).WithField("address", bindAddress).Error("Failed to bind to address")
 		return
 	}
 
@@ -172,7 +173,7 @@ func superviseMigrationCommandFunc(cmd *cobra.Command, args []string) {
 
 	go func() { <-ctx.Done(); grpcServer.GracefulStop() }()
 
-	logger.Infof("Starting server, bound to %s", bindAddr)
+	logger.Infof("Starting server, bound to %s", bindAddress)
 	if err := grpcServer.Serve(listen); err != nil {
 		logger.WithError(err).Error("Server failed with error")
 	}
