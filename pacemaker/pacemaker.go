@@ -1,7 +1,9 @@
 package pacemaker
 
 import (
+	"fmt"
 	"os/exec"
+	"regexp"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -81,6 +83,10 @@ func (p Pacemaker) Get(ctx context.Context, xpaths ...string) ([]*etree.Element,
 // we'll typically extract them from XML that will yield strings. Given we'll be passing
 // them as string executable arguments it makes sense to keep everything homomorphic.
 func (p Pacemaker) ResolveAddress(ctx context.Context, nodeID string) (string, error) {
+	if !regexp.MustCompile("^\\s*(\\d+)$").MatchString(nodeID) {
+		return "", fmt.Errorf("invalid nodeID, must be single integer: '%s'", nodeID)
+	}
+
 	output, err := p.CombinedOutput(ctx, "corosync-cfgtool", "-a", nodeID)
 
 	if err != nil {
