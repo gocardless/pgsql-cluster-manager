@@ -2,7 +2,6 @@ package pacemaker
 
 import (
 	"os/exec"
-	"time"
 
 	"github.com/pkg/errors"
 	"golang.org/x/net/context"
@@ -16,49 +15,44 @@ var (
 	AsyncXPath  = "//node/instance_attributes/nvpair[@value='STREAMING|POTENTIAL']/../.."
 )
 
-// Cib wraps the executables provided by pacemaker, providing querying of the cib as well
-// as running commands against crm.
-type Cib struct {
+// Pacemaker wraps the executables provided by pacemaker, providing querying of the cib as
+// well as running commands against crm.
+type Pacemaker struct {
 	executor
 }
 
 type executor interface {
-	CombinedOutput(string, ...string) ([]byte, error)
+	CombinedOutput(context.Context, string, ...string) ([]byte, error)
 }
 
-type systemExecutor struct {
-	timeout time.Duration
-}
+type systemExecutor struct{}
 
-func (e systemExecutor) CombinedOutput(name string, args ...string) ([]byte, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), e.timeout)
-	defer cancel()
-
+func (e systemExecutor) CombinedOutput(ctx context.Context, name string, args ...string) ([]byte, error) {
 	return exec.CommandContext(ctx, name, args...).CombinedOutput()
 }
 
-func WithExecutor(e executor) func(*Cib) {
-	return func(c *Cib) {
+func WithExecutor(e executor) func(*Pacemaker) {
+	return func(c *Pacemaker) {
 		c.executor = e
 	}
 }
 
-func NewCib(options ...func(*Cib)) *Cib {
-	c := &Cib{systemExecutor{500 * time.Millisecond}}
+func NewPacemaker(options ...func(*Pacemaker)) *Pacemaker {
+	p := &Pacemaker{systemExecutor{}}
 
 	for _, option := range options {
-		option(c)
+		option(p)
 	}
 
-	return c
+	return p
 }
 
 // Get returns nodes from the cibadmin XML output, extracted using the given XPaths. If we
 // detect that pacemaker does not have quorum, then we error, as we should be able to rely
 // on values being correct with respect to the quorate.
-func (c Cib) Get(xpaths ...string) ([]*etree.Element, error) {
+func (p Pacemaker) Get(ctx context.Context, xpaths ...string) ([]*etree.Element, error) {
 	nodes := make([]*etree.Element, 0)
-	xmlOutput, err := c.CombinedOutput("cibadmin", "--query", "--local")
+	xmlOutput, err := p.CombinedOutput(ctx, "cibadmin", "--query", "--local")
 
 	if err != nil {
 		return nil, err
@@ -83,8 +77,8 @@ func (c Cib) Get(xpaths ...string) ([]*etree.Element, error) {
 }
 
 // Migrate will issue a resource migration of msPostgresql to the given node
-func (c Cib) Migrate(to string) error {
-	_, err := c.CombinedOutput("crm", "resource", "migrate", "msPostgresql", to)
+func (p Pacemaker) Migrate(ctx context.Context, to string) error {
+	_, err := p.CombinedOutput(ctx, "crm", "resource", "migrate", "msPostgresql", to)
 
 	if err != nil {
 		return errors.Wrap(err, "failed to execute crm migration")
@@ -94,8 +88,8 @@ func (c Cib) Migrate(to string) error {
 }
 
 // Unmigrate will remove constraints previously created by migrate
-func (c Cib) Unmigrate() error {
-	_, err := c.CombinedOutput("crm", "resource", "unmigrate", "msPostgresql")
+func (p Pacemaker) Unmigrate(ctx context.Context) error {
+	_, err := p.CombinedOutput(ctx, "crm", "resource", "unmigrate", "msPostgresql")
 
 	if err != nil {
 		return errors.Wrap(err, "failed to execute crm resource unmigrate")

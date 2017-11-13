@@ -5,6 +5,8 @@ import (
 	"io/ioutil"
 	"testing"
 
+	"golang.org/x/net/context"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -12,8 +14,8 @@ import (
 
 type fakeExecutor struct{ mock.Mock }
 
-func (e fakeExecutor) CombinedOutput(name string, arg ...string) ([]byte, error) {
-	args := e.Called(name, arg)
+func (e fakeExecutor) CombinedOutput(ctx context.Context, name string, arg ...string) ([]byte, error) {
+	args := e.Called(ctx, name, arg)
 	return args.Get(0).([]byte), args.Error(1)
 }
 
@@ -50,9 +52,9 @@ func TestGet(t *testing.T) {
 			require.Nil(t, fixtureErr)
 
 			executor := new(fakeExecutor)
-			executor.On("CombinedOutput", "cibadmin", []string{"--query", "--local"}).Return(fixture, nil)
+			executor.On("CombinedOutput", context.Background(), "cibadmin", []string{"--query", "--local"}).Return(fixture, nil)
 
-			nodes, err := Cib{executor}.Get(MasterXPath)
+			nodes, err := Pacemaker{executor}.Get(context.Background(), MasterXPath)
 
 			executor.AssertExpectations(t)
 
@@ -91,11 +93,11 @@ func TestMigrate(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			executor := new(fakeExecutor)
-			executor.On("CombinedOutput", "crm", []string{
+			executor.On("CombinedOutput", context.Background(), "crm", []string{
 				"resource", "migrate", "msPostgresql", "pg03",
 			}).Return([]byte(""), tc.execErr)
 
-			err := Cib{executor}.Migrate("pg03")
+			err := Pacemaker{executor}.Migrate(context.Background(), "pg03")
 
 			if err != nil {
 				assert.EqualValues(t, tc.err.Error(), err.Error())
@@ -126,11 +128,11 @@ func TestUnmigrate(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			executor := new(fakeExecutor)
-			executor.On("CombinedOutput", "crm", []string{
+			executor.On("CombinedOutput", context.Background(), "crm", []string{
 				"resource", "unmigrate", "msPostgresql",
 			}).Return([]byte(""), tc.execErr)
 
-			err := Cib{executor}.Unmigrate()
+			err := Pacemaker{executor}.Unmigrate(context.Background())
 
 			if err != nil {
 				assert.EqualValues(t, tc.err.Error(), err.Error())

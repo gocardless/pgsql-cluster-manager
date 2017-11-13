@@ -68,9 +68,9 @@ func (c *Cluster) Shutdown() {
 
 // Roles returns a triple of master, sync, async docker containers. When a role doesn't
 // exist, the container will be nil.
-func (c *Cluster) Roles() (*docker.Container, *docker.Container, *docker.Container) {
-	cib := pacemaker.NewCib(pacemaker.WithExecutor(c.Executor()))
-	nodes, err := cib.Get(pacemaker.MasterXPath, pacemaker.SyncXPath, pacemaker.AsyncXPath)
+func (c *Cluster) Roles(ctx context.Context) (*docker.Container, *docker.Container, *docker.Container) {
+	crm := pacemaker.NewPacemaker(pacemaker.WithExecutor(c.Executor()))
+	nodes, err := crm.Get(ctx, pacemaker.MasterXPath, pacemaker.SyncXPath, pacemaker.AsyncXPath)
 
 	if err != nil {
 		return nil, nil, nil
@@ -109,7 +109,7 @@ type dockerExecutor struct {
 
 // CombinedOutput executes a command against the container and will block until it
 // terminates, returning the command output as a byte slice.
-func (e dockerExecutor) CombinedOutput(name string, args ...string) ([]byte, error) {
+func (e dockerExecutor) CombinedOutput(ctx context.Context, name string, args ...string) ([]byte, error) {
 	var output bytes.Buffer
 
 	exec, err := e.client.CreateExec(docker.CreateExecOptions{
@@ -125,6 +125,7 @@ func (e dockerExecutor) CombinedOutput(name string, args ...string) ([]byte, err
 	}
 
 	err = e.client.StartExec(exec.ID, docker.StartExecOptions{
+		Context:      ctx,
 		Detach:       false,
 		OutputStream: &output,
 		ErrorStream:  &output,
@@ -204,7 +205,7 @@ func StartCluster(t *testing.T, ctx context.Context) *Cluster {
 	ids := []string{pg01.ID, pg02.ID, pg03.ID}
 
 	startMember := func(node *docker.Container) {
-		_, err := dockerExecutor{client, node}.CombinedOutput("/bin/start-cluster", ids...)
+		_, err := dockerExecutor{client, node}.CombinedOutput(ctx, "/bin/start-cluster", ids...)
 		require.Nil(t, err)
 	}
 

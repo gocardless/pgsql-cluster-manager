@@ -25,7 +25,7 @@ func TestIntegration(t *testing.T) {
 	cluster := StartCluster(t, ctx)
 
 	outputFile := func(path string) {
-		contents, err := cluster.Executor().CombinedOutput("cat", path)
+		contents, err := cluster.Executor().CombinedOutput(ctx, "cat", path)
 
 		if err == nil {
 			fmt.Printf("$ cat %s\n\n%s\n\n", path, string(contents))
@@ -105,6 +105,7 @@ func TestIntegration(t *testing.T) {
 
 		fmt.Println("running migrate using api...")
 		output, err := cluster.Executor().CombinedOutput(
+			ctx,
 			"pgsql-cluster-manager", "migrate",
 			"--log-level", "debug",
 			"--etcd-namespace", "/postgres",
@@ -130,7 +131,7 @@ func TestIntegration(t *testing.T) {
 			case <-timeout:
 				require.Fail(t, "timed out waiting for node to become master")
 			default:
-				if master, _, _ := cluster.Roles(); master == node {
+				if master, _, _ := cluster.Roles(ctx); master == node {
 					return
 				}
 
@@ -160,7 +161,7 @@ func TestIntegration(t *testing.T) {
 		}
 	}
 
-	master, sync, async := cluster.Roles()
+	master, sync, async := cluster.Roles(ctx)
 
 	conn := connectTo(async)
 	connectedAddr := inetServerAddr(conn)

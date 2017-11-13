@@ -16,7 +16,7 @@ import (
 type migrationServer struct {
 	logger    *logrus.Logger
 	PGBouncer pgBouncerPauser
-	cib
+	crm
 	clock
 }
 
@@ -38,10 +38,10 @@ func (c realClock) Now() time.Time { return time.Now() }
 
 func (c realClock) Until(t time.Time) time.Duration { return time.Until(t) }
 
-type cib interface {
-	Get(...string) ([]*etree.Element, error)
-	Migrate(string) error
-	Unmigrate() error
+type crm interface {
+	Get(context.Context, ...string) ([]*etree.Element, error)
+	Migrate(context.Context, string) error
+	Unmigrate(context.Context) error
 }
 
 func WithServerLogger(logger *logrus.Logger) func(*migrationServer) {
@@ -56,15 +56,15 @@ func WithPGBouncer(bouncer pgBouncerPauser) func(*migrationServer) {
 	return func(s *migrationServer) { s.PGBouncer = bouncer }
 }
 
-func WithCib(c cib) func(*migrationServer) {
-	return func(s *migrationServer) { s.cib = c }
+func WithPacemaker(c crm) func(*migrationServer) {
+	return func(s *migrationServer) { s.crm = c }
 }
 
 func NewServer(options ...func(*migrationServer)) *migrationServer {
 	s := &migrationServer{
 		logger: logrus.New(),
 		clock:  realClock{},
-		cib:    pacemaker.NewCib(),
+		crm:    pacemaker.NewPacemaker(),
 	}
 
 	for _, option := range options {
@@ -127,7 +127,7 @@ func (s *migrationServer) Resume(ctx context.Context, _ *Empty) (*ResumeResponse
 }
 
 func (s *migrationServer) Migrate(ctx context.Context, _ *Empty) (*MigrateResponse, error) {
-	nodes, err := s.cib.Get(pacemaker.SyncXPath)
+	nodes, err := s.crm.Get(ctx, pacemaker.SyncXPath)
 
 	if err != nil {
 		s.logger.WithError(err).Error("Failed to query cib")
@@ -141,7 +141,7 @@ func (s *migrationServer) Migrate(ctx context.Context, _ *Empty) (*MigrateRespon
 	}
 
 	syncHost := sync.SelectAttrValue("uname", "")
-	err = s.cib.Migrate(syncHost)
+	err = s.crm.Migrate(ctx, syncHost)
 
 	if err != nil {
 		s.logger.WithError(err).Error("crm resource migrate failed")
@@ -157,7 +157,7 @@ func (s *migrationServer) Migrate(ctx context.Context, _ *Empty) (*MigrateRespon
 }
 
 func (s *migrationServer) Unmigrate(ctx context.Context, _ *Empty) (*UnmigrateResponse, error) {
-	if err := s.cib.Unmigrate(); err != nil {
+	if err := s.crm.Unmigrate(ctx); err != nil {
 		return nil, status.Errorf(codes.Unknown, "crm resource unmigrate failed: %s", err.Error())
 	}
 
