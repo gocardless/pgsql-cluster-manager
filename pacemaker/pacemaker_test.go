@@ -75,6 +75,7 @@ func TestGet(t *testing.T) {
 func TestResolveAddress(t *testing.T) {
 	testCases := []struct {
 		name            string
+		nodeID          string
 		execOutput      []byte
 		execErr         error
 		expectedAddress string
@@ -82,13 +83,23 @@ func TestResolveAddress(t *testing.T) {
 	}{
 		{
 			"when corosync-cfgtool returns no error",
+			"1",
 			[]byte("172.17.0.4\n"),
 			nil,
 			"172.17.0.4",
 			nil,
 		},
 		{
+			"when nodeID is invalid",
+			"invalid-node",
+			[]byte(""),
+			nil,
+			"",
+			errors.New("invalid nodeID, must be single integer: 'invalid-node'"),
+		},
+		{
 			"when corosync-cfgtool returns an error",
+			"1",
 			[]byte(""),
 			errors.New("exec: \"corosync-cfgtool\": executable file not found in $PATH"),
 			"",
@@ -102,16 +113,15 @@ func TestResolveAddress(t *testing.T) {
 
 			executor := new(fakeExecutor)
 			executor.
-				On("CombinedOutput", bgCtx, "corosync-cfgtool", []string{"-a", "1"}).
+				On("CombinedOutput", bgCtx, "corosync-cfgtool", []string{"-a", tc.nodeID}).
 				Return(tc.execOutput, tc.execErr)
 
-			address, err := Pacemaker{executor}.ResolveAddress(bgCtx, "1")
+			address, err := Pacemaker{executor}.ResolveAddress(bgCtx, tc.nodeID)
 
 			if err != nil {
 				assert.EqualValues(t, tc.expectedErr.Error(), err.Error())
 			}
 			assert.EqualValues(t, tc.expectedAddress, address)
-			executor.AssertExpectations(t)
 		})
 	}
 }
