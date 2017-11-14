@@ -31,9 +31,9 @@ var (
 
 func init() {
 	flags := PgsqlCommand.PersistentFlags()
-	flags.String("config-file", "", "Load configuration from config file")
 
 	// We always need an etcd connection, so these flags are for all commands
+	flags.String("config-file", "", "Load configuration from config file")
 	flags.String("etcd-namespace", "", "Namespace all requests to etcd under this value")
 	flags.StringSlice("etcd-endpoints", []string{"http://127.0.0.1:2379"}, "gRPC etcd endpoints")
 	flags.Duration("etcd-dial-timeout", 3*time.Second, "Timeout when connecting to etcd")
@@ -41,6 +41,7 @@ func init() {
 	flags.String("log-level", "info", "Log level, one of [debug,info,warning,error,fatal,panic]")
 
 	// Bind flag value into Viper configuration
+	viper.BindPFlag("config-file", flags.Lookup("config-file"))
 	viper.BindPFlag("etcd-namespace", flags.Lookup("etcd-namespace"))
 	viper.BindPFlag("etcd-endpoints", flags.Lookup("etcd-endpoints"))
 	viper.BindPFlag("etcd-dial-timeout", flags.Lookup("etcd-dial-timeout"))
