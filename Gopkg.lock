@@ -8,6 +8,12 @@
   revision = "04b7f292a41fcb5da32dda536c0807fc13e8351c"
 
 [[projects]]
+  name = "github.com/BurntSushi/toml"
+  packages = ["."]
+  revision = "b26d9c308763d68093482582cea63d69be07a0f0"
+  version = "v0.3.0"
+
+[[projects]]
   name = "github.com/Microsoft/go-winio"
   packages = ["."]
   revision = "78439966b38d69bf38227fbf57ac8a6fee70f69a"
@@ -27,7 +33,7 @@
 
 [[projects]]
   name = "github.com/coreos/etcd"
-  packages = ["auth/authpb","clientv3","clientv3/namespace","etcdserver/api/v3rpc/rpctypes","etcdserver/etcdserverpb","mvcc/mvccpb"]
+  packages = ["auth/authpb","clientv3","clientv3/concurrency","clientv3/namespace","etcdserver/api/v3rpc/rpctypes","etcdserver/etcdserverpb","mvcc/mvccpb"]
   revision = "9d43462d174c664f5edf313dec0de31e1ef4ed47"
   version = "v3.2.6"
 
@@ -70,7 +76,7 @@
 [[projects]]
   branch = "master"
   name = "github.com/golang/protobuf"
-  packages = ["proto","ptypes/any"]
+  packages = ["proto","ptypes","ptypes/any","ptypes/duration","ptypes/timestamp"]
   revision = "ab9f9a6dab164b7d1246e0e688b0ab7b94d8553e"
 
 [[projects]]
@@ -226,6 +232,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "00cf635b1362ca661d55eff4d4633b59f72fb959adb860b4a352d3994343cc6e"
+  inputs-digest = "8ce9306af5db761e1d857bf698f700ec9d4597c0cb13f68ac5bd9fb66028ddf1"
   solver-name = "gps-cdcl"
   solver-version = 1
