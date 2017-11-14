@@ -3,7 +3,6 @@ package command
 import (
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
@@ -31,31 +30,30 @@ var (
 )
 
 func init() {
-	// Configure viper so that command-line flags are used as a priority, followed by
-	// environment variables, followed by the supplied defaults
-	viper.AutomaticEnv()
-	viper.SetEnvPrefix("pgsql")
-	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
-
 	flags := PgsqlCommand.PersistentFlags()
+	flags.String("config-file", "", "Load configuration from config file")
 
 	// We always need an etcd connection, so these flags are for all commands
 	flags.String("etcd-namespace", "", "Namespace all requests to etcd under this value")
 	flags.StringSlice("etcd-endpoints", []string{"http://127.0.0.1:2379"}, "gRPC etcd endpoints")
 	flags.Duration("etcd-dial-timeout", 3*time.Second, "Timeout when connecting to etcd")
+	flags.String("postgres-master-etcd-key", "/master", "etcd key that stores current Postgres primary")
 	flags.String("log-level", "info", "Log level, one of [debug,info,warning,error,fatal,panic]")
 
 	// Bind flag value into Viper configuration
 	viper.BindPFlag("etcd-namespace", flags.Lookup("etcd-namespace"))
 	viper.BindPFlag("etcd-endpoints", flags.Lookup("etcd-endpoints"))
 	viper.BindPFlag("etcd-dial-timeout", flags.Lookup("etcd-dial-timeout"))
+	viper.BindPFlag("postgres-master-etcd-key", flags.Lookup("postgres-master-etcd-key"))
 	viper.BindPFlag("log-level", flags.Lookup("log-level"))
 
+	PgsqlCommand.AddCommand(NewShowConfigCommand())
 	PgsqlCommand.AddCommand(NewSuperviseCommand())
 	PgsqlCommand.AddCommand(NewMigrateCommand())
 	PgsqlCommand.AddCommand(NewVersionCommand())
 
 	cobra.OnInitialize(ConfigureLogger)
+	cobra.OnInitialize(LoadConfigFile)
 }
 
 func ConfigureLogger() {
@@ -78,6 +76,23 @@ func ConfigureLogger() {
 	}
 
 	logger.Level = level
+}
+
+func LoadConfigFile() {
+	configFile := viper.GetString("config-file")
+
+	if configFile == "" {
+		return
+	}
+
+	viper.SetConfigFile(configFile)
+	ctxLogger := logger.WithField("configFile", configFile)
+
+	if err := viper.ReadInConfig(); err != nil {
+		ctxLogger.WithError(err).Fatal("Failed to read config")
+	}
+
+	ctxLogger.Info("Loaded config")
 }
 
 func EtcdClientOrExit() *clientv3.Client {

@@ -41,11 +41,9 @@ func newSuperviseProxyCommand() *cobra.Command {
 
 	flags.String("pgbouncer-config-file", "/etc/pgbouncer/pgbouncer.ini", "Path to PGBouncer config file")
 	flags.String("pgbouncer-config-template-file", "/etc/pgbouncer/pgbouncer.ini.template", "Path to PGBouncer config template file")
-	flags.String("postgres-master-etcd-key", "/master", "etcd key that stores current Postgres primary")
 
 	viper.BindPFlag("pgbouncer-config-file", flags.Lookup("pgbouncer-config-file"))
 	viper.BindPFlag("pgbouncer-config-template-file", flags.Lookup("pgbouncer-config-template-file"))
-	viper.BindPFlag("postgres-master-etcd-key", flags.Lookup("postgres-master-etcd-key"))
 
 	return sp
 }
@@ -77,10 +75,7 @@ func newSuperviseClusterCommand() *cobra.Command {
 
 	flags := sc.Flags()
 
-	flags.String("postgres-master-etcd-key", "/master", "etcd key that stores current Postgres primary")
 	flags.String("postgres-master-crm-xpath", pacemaker.MasterXPath, "XPath selector into cibadmin that finds current master")
-
-	viper.BindPFlag("postgres-master-etcd-key", flags.Lookup("postgres-master-etcd-key"))
 	viper.BindPFlag("postgres-master-crm-xpath", flags.Lookup("postgres-master-crm-xpath"))
 
 	return sc

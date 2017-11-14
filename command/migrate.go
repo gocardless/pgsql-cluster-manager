@@ -61,7 +61,6 @@ func NewMigrateCommand() *cobra.Command {
 	flags.Duration("pause-timeout", 5*time.Second, "Timeout for all nodes to pause PGBouncer")
 	flags.Duration("pause-expiry", 25*time.Second, "Time after which PGBouncer will automatically lift pause")
 	flags.Duration("pacemaker-timeout", 20*time.Second, "Timeout for executing (not necessarily to completion) pacemaker commands")
-	flags.String("postgres-master-etcd-key", "/master", "etcd key that stores current Postgres primary")
 
 	viper.BindPFlag("migration-api-endpoints", flags.Lookup("migration-api-endpoints"))
 	viper.BindPFlag("health-check-timeout", flags.Lookup("health-check-timeout"))
@@ -69,7 +68,6 @@ func NewMigrateCommand() *cobra.Command {
 	viper.BindPFlag("pause-timeout", flags.Lookup("pause-timeout"))
 	viper.BindPFlag("pause-expiry", flags.Lookup("pause-expiry"))
 	viper.BindPFlag("pacemaker-timeout", flags.Lookup("pacemaker-timeout"))
-	viper.BindPFlag("postgres-master-etcd-key", flags.Lookup("postgres-master-etcd-key"))
 
 	return cm
 }
