@@ -164,8 +164,9 @@ func (b pgBouncer) ShowDatabases(ctx context.Context) ([]Database, error) {
 
 // These error codes are returned whenever PGBouncer is asked to PAUSE/RESUME, but is
 // already in the given state.
-const AlreadyPausedError = "08P01"
-const AlreadyResumedError = AlreadyPausedError
+const PoolerError = "08P01"
+const AlreadyPausedError = "already suspended/paused"
+const AlreadyResumedError = "Pooler is not paused/suspended"
 
 // Pause causes PGBouncer to buffer incoming queries while waiting for those currently
 // processing to finish executing. The supplied timeout is applied to the Postgres
@@ -173,7 +174,7 @@ const AlreadyResumedError = AlreadyPausedError
 func (b pgBouncer) Pause(ctx context.Context) error {
 	if _, err := b.PsqlExecutor.ExecContext(ctx, `PAUSE;`); err != nil {
 		if err, ok := err.(*pq.Error); ok {
-			if string(err.Code) == AlreadyPausedError {
+			if string(err.Code) == PoolerError && err.Message == AlreadyPausedError {
 				return nil
 			}
 		}
@@ -188,7 +189,7 @@ func (b pgBouncer) Pause(ctx context.Context) error {
 func (b pgBouncer) Resume(ctx context.Context) error {
 	if _, err := b.PsqlExecutor.ExecContext(ctx, `RESUME;`); err != nil {
 		if err, ok := err.(*pq.Error); ok {
-			if string(err.Code) == AlreadyResumedError {
+			if string(err.Code) == PoolerError && err.Message == AlreadyResumedError {
 				return nil
 			}
 		}

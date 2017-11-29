@@ -99,11 +99,11 @@ func TestPause(t *testing.T) {
 				assert.Equal(t, "failed to pause PGBouncer: timeout", err.Error())
 			},
 		},
-		// If PGBouncer is already paused then we'll receive a specific error code. Verify that
-		// the Pause command will succeed in this case, as it has no work to do.
+		// If PGBouncer is already paused then we'll receive a specific error message. Verify
+		// that the Pause command will succeed in this case, as it has no work to do.
 		{
 			"when already paused",
-			&pq.Error{Code: "08P01"},
+			&pq.Error{Code: "08P01", Message: "already suspended/paused"},
 			func(t *testing.T, err error) {
 				assert.Nil(t, err, "expected Pause to return no error")
 			},
@@ -188,7 +188,7 @@ func TestResume(t *testing.T) {
 		},
 		{
 			"when already resumed",
-			&pq.Error{Code: "08P01"},
+			&pq.Error{Code: "08P01", Message: "Pooler is not paused/suspended"},
 			func(t *testing.T, err error) {
 				assert.Nil(t, err, "expected Resume to return no error")
 			},
