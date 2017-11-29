@@ -14,14 +14,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type fakePsqlExecutor struct{ mock.Mock }
+type fakeExecutor struct{ mock.Mock }
 
-func (e fakePsqlExecutor) QueryContext(ctx context.Context, query string, params ...interface{}) (*sql.Rows, error) {
+func (e fakeExecutor) QueryContext(ctx context.Context, query string, params ...interface{}) (*sql.Rows, error) {
 	args := e.Called(ctx, query, params)
 	return args.Get(0).(*sql.Rows), args.Error(1)
 }
 
-func (e fakePsqlExecutor) ExecContext(ctx context.Context, query string, params ...interface{}) (sql.Result, error) {
+func (e fakeExecutor) ExecContext(ctx context.Context, query string, params ...interface{}) (sql.Result, error) {
 	args := e.Called(ctx, query, params)
 	return args.Get(0).(sql.Result), args.Error(1)
 }
@@ -47,9 +47,9 @@ func makeTempFile(t *testing.T, prefix string) *os.File {
 
 func TestGenerateConfig(t *testing.T) {
 	t.Run("errors with invalid config template", func(t *testing.T) {
-		bouncer := pgBouncer{
+		bouncer := &PGBouncer{
 			ConfigFile:         "/etc/pgbouncer/pgbouncer.ini",
-			ConfigFileTemplate: "/this/does/not/exist",
+			ConfigTemplateFile: "/this/does/not/exist",
 		}
 
 		err := bouncer.GenerateConfig("curly.db.ams.gc.cx")
@@ -65,9 +65,9 @@ func TestGenerateConfig(t *testing.T) {
 		tempConfigFile := makeTempFile(t, "pgbouncer-config-")
 		defer os.Remove(tempConfigFile.Name())
 
-		bouncer := pgBouncer{
+		bouncer := &PGBouncer{
 			ConfigFile:         tempConfigFile.Name(),
-			ConfigFileTemplate: "./fixtures/pgbouncer.ini.template",
+			ConfigTemplateFile: "./fixtures/pgbouncer.ini.template",
 		}
 
 		err := bouncer.GenerateConfig("curly.db.ams.gc.cx")
@@ -113,15 +113,15 @@ func TestPause(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			var noParams []interface{}
-			psql := new(fakePsqlExecutor)
-			bouncer := pgBouncer{PsqlExecutor: psql}
+			exec := new(fakeExecutor)
+			bouncer := &PGBouncer{Executor: exec}
 
-			psql.
+			exec.
 				On("ExecContext", context.TODO(), "PAUSE;", noParams).
 				Return(fakeSqlResult{}, tc.psqlError)
 			err := bouncer.Pause(context.TODO())
 
-			psql.AssertExpectations(t)
+			exec.AssertExpectations(t)
 			tc.assertError(t, err)
 		})
 	}
@@ -152,15 +152,15 @@ func TestReload(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			var noParams []interface{}
-			psql := new(fakePsqlExecutor)
-			bouncer := pgBouncer{PsqlExecutor: psql}
+			exec := new(fakeExecutor)
+			bouncer := &PGBouncer{Executor: exec}
 
-			psql.
+			exec.
 				On("ExecContext", context.TODO(), "RELOAD;", noParams).
 				Return(fakeSqlResult{}, tc.psqlError)
 			err := bouncer.Reload(context.TODO())
 
-			psql.AssertExpectations(t)
+			exec.AssertExpectations(t)
 			tc.assertError(t, err)
 		})
 	}
@@ -198,15 +198,15 @@ func TestResume(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			var noParams []interface{}
-			psql := new(fakePsqlExecutor)
-			bouncer := pgBouncer{PsqlExecutor: psql}
+			exec := new(fakeExecutor)
+			bouncer := &PGBouncer{Executor: exec}
 
-			psql.
+			exec.
 				On("ExecContext", context.TODO(), "RESUME;", noParams).
 				Return(fakeSqlResult{}, tc.psqlError)
 			err := bouncer.Resume(context.TODO())
 
-			psql.AssertExpectations(t)
+			exec.AssertExpectations(t)
 			tc.assertError(t, err)
 		})
 	}
