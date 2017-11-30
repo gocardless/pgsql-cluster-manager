@@ -21,6 +21,24 @@ func NewSuperviseCommand() *cobra.Command {
 		Short: "Manage components of the Postgres cluster",
 	}
 
+	flags := sc.Flags()
+
+	flags.String("pgbouncer-user", "pgbouncer", "Admin user of PGBouncer")
+	flags.String("pgbouncer-password", "", "Password for admin user")
+	flags.String("pgbouncer-database", "pgbouncer", "PGBouncer special database (inadvisable to change)")
+	flags.String("pgbouncer-socket-dir", "/var/run/postgresql", "Directory in which the unix socket resides")
+	flags.String("pgbouncer-port", "6432", "Port that PGBouncer is listening on")
+	flags.String("pgbouncer-config-file", "/etc/pgbouncer/pgbouncer.ini", "Path to PGBouncer config file")
+	flags.String("pgbouncer-config-template-file", "/etc/pgbouncer/pgbouncer.ini.template", "Path to PGBouncer config template file")
+
+	viper.BindPFlag("pgbouncer-user", flags.Lookup("pgbouncer-user"))
+	viper.BindPFlag("pgbouncer-password", flags.Lookup("pgbouncer-password"))
+	viper.BindPFlag("pgbouncer-database", flags.Lookup("pgbouncer-database"))
+	viper.BindPFlag("pgbouncer-socket-dir", flags.Lookup("pgbouncer-socket-dir"))
+	viper.BindPFlag("pgbouncer-port", flags.Lookup("pgbouncer-port"))
+	viper.BindPFlag("pgbouncer-config-file", flags.Lookup("pgbouncer-config-file"))
+	viper.BindPFlag("pgbouncer-config-template-file", flags.Lookup("pgbouncer-config-template-file"))
+
 	sc.AddCommand(newSuperviseProxyCommand())
 	sc.AddCommand(newSuperviseClusterCommand())
 	sc.AddCommand(newSuperviseMigrationCommand())
@@ -29,23 +47,13 @@ func NewSuperviseCommand() *cobra.Command {
 }
 
 func newSuperviseProxyCommand() *cobra.Command {
-	sp := &cobra.Command{
+	return &cobra.Command{
 		Use:   "proxy [options]",
 		Short: "Manages PGBouncer proxy",
 		Long: "Controls the local PGBouncer instance by managing the config file to point " +
 			"PGBouncer at the host located at postgres-master-etcd-key",
 		Run: superviseProxyCommandFunc,
 	}
-
-	flags := sp.Flags()
-
-	flags.String("pgbouncer-config-file", "/etc/pgbouncer/pgbouncer.ini", "Path to PGBouncer config file")
-	flags.String("pgbouncer-config-template-file", "/etc/pgbouncer/pgbouncer.ini.template", "Path to PGBouncer config template file")
-
-	viper.BindPFlag("pgbouncer-config-file", flags.Lookup("pgbouncer-config-file"))
-	viper.BindPFlag("pgbouncer-config-template-file", flags.Lookup("pgbouncer-config-template-file"))
-
-	return sp
 }
 
 func superviseProxyCommandFunc(cmd *cobra.Command, args []string) {

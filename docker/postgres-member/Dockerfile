@@ -20,6 +20,9 @@ COPY stonith/docker /usr/lib/stonith/plugins/external/
 # specify permissions for group/other.
 RUN chmod 700 /usr/lib/stonith/plugins/external/docker
 
+ADD pgsql-cluster-manager/config.toml /etc/pgsql-cluster-manager/config.toml
+RUN chown postgres:postgres /etc/pgsql-cluster-manager/config.toml
+
 COPY start-cluster.bash /bin/start-cluster
 
 EXPOSE 2379 5432 6432 8080

@@ -128,11 +128,18 @@ func EtcdSessionOrExit(client *clientv3.Client) *concurrency.Session {
 	return session
 }
 
-func PGBouncerOrExit() pgbouncer.PGBouncer {
-	return pgbouncer.NewPGBouncer(
-		viper.GetString("pgbouncer-config-file"),
-		viper.GetString("pgbouncer-config-template-file"),
-	)
+func PGBouncerOrExit() *pgbouncer.PGBouncer {
+	return &pgbouncer.PGBouncer{
+		ConfigFile:         viper.GetString("pgbouncer-config-file"),
+		ConfigTemplateFile: viper.GetString("pgbouncer-config-template-file"),
+		Executor: pgbouncer.AuthorizedExecutor{
+			User:      viper.GetString("pgbouncer-user"),
+			Password:  viper.GetString("pgbouncer-password"),
+			Database:  viper.GetString("pgbouncer-database"),
+			SocketDir: viper.GetString("pgbouncer-socket-dir"),
+			Port:      viper.GetString("pgbouncer-port"),
+		},
+	}
 }
 
 func HandleQuitSignal(message string, handler func()) func() {
