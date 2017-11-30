@@ -15,7 +15,7 @@ import (
 )
 
 type PGBouncerProcess struct {
-	pgbouncer.PGBouncer
+	*pgbouncer.PGBouncer
 	ConfigFile, ConfigFileTemplate string
 }
 
@@ -78,10 +78,16 @@ ignore_startup_parameters = extra_float_digits`, workspace, workspace)),
 		require.Fail(t, "failed to start pgbouncer: %s", err.Error())
 	}
 
-	bouncer := pgbouncer.NewPGBouncer(
-		filepath.Join(workspace, "pgbouncer.ini"),
-		filepath.Join(workspace, "pgbouncer.ini.template"),
-	)
+	bouncer := &pgbouncer.PGBouncer{
+		ConfigFile:         filepath.Join(workspace, "pgbouncer.ini"),
+		ConfigTemplateFile: filepath.Join(workspace, "pgbouncer.ini.template"),
+		Executor: pgbouncer.AuthorizedExecutor{
+			User:      "pgbouncer",
+			Database:  "pgbouncer",
+			SocketDir: workspace,
+			Port:      "6432",
+		},
+	}
 
 	if err = pollPGBouncer(bouncer); err != nil {
 		require.Fail(t, err.Error())
@@ -97,7 +103,7 @@ ignore_startup_parameters = extra_float_digits`, workspace, workspace)),
 // pollPGBouncer attempts to execute a Reload against PGBouncer until the reload is
 // successful, eventually timing out. This allows us to wait for PGBouncer to become ready
 // before proceeding.
-func pollPGBouncer(bouncer pgbouncer.PGBouncer) error {
+func pollPGBouncer(bouncer *pgbouncer.PGBouncer) error {
 	timeout := time.After(10 * time.Second)
 
 	for {

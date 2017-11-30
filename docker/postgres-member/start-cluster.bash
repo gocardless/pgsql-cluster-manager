@@ -13,7 +13,7 @@ function log() {
 
 # container_ip <id>
 function container_ip() {
-  docker inspect -f '{{ .NetworkSettings.IPAddress }}' $1
+  docker inspect -f '{{ .NetworkSettings.IPAddress }}' "$1"
 }
 
 PG01="$1"; PG01_IP="$(container_ip "$PG01")"
@@ -140,7 +140,7 @@ EOF
 function wait_for_roles() {
   log "Waiting for master/sync/async..."
   while true; do
-    log "[$(date)] Polling..."
+    log "Polling..."
     (crm node list | grep 'LATEST') && \
       (crm node list | grep 'STREAMING|POTENTIAL') && \
       (crm node list | grep 'STREAMING|SYNC') && \
@@ -187,23 +187,20 @@ function start_cluster_manager() {
   cat <<EOF > /usr/local/bin/pgsql-cluster-manager.sh
 #!/bin/bash
 
-mkdir /var/log/pgsql
+mkdir /var/log/pgsql-cluster-manager
 
 /usr/local/bin/pgsql-cluster-manager supervise cluster \
-  --etcd-namespace /postgres \
-  >>/var/log/pgsql/cluster.log 2>&1 &
+  --config-file /etc/pgsql-cluster-manager/config.toml \
+  >>/var/log/pgsql-cluster-manager/cluster.log 2>&1 &
 
 /usr/local/bin/pgsql-cluster-manager supervise migration \
-  >>/var/log/pgsql/migration.log 2>&1 &
+  --config-file /etc/pgsql-cluster-manager/config.toml \
+  >>/var/log/pgsql-cluster-manager/migration.log 2>&1 &
 
 sudo -u postgres \
   /usr/local/bin/pgsql-cluster-manager supervise proxy \
-    --etcd-namespace /postgres \
-    --pgbouncer-config-file /etc/pgbouncer/pgbouncer.ini \
-    --pgbouncer-config-template-file /etc/pgbouncer/pgbouncer.ini.template \
-    --postgres-master-etcd-key /master \
-    --log-level debug \
-    >>/var/log/pgsql/proxy.log 2>&1 &
+    --config-file /etc/pgsql-cluster-manager/config.toml \
+    >>/var/log/pgsql-cluster-manager/proxy.log 2>&1 &
 EOF
 
   chmod a+x /usr/local/bin/pgsql-cluster-manager.sh

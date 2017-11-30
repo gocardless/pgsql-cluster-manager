@@ -1,4 +1,4 @@
-VERSION=0.0.3
+VERSION=0.0.4
 PROG=pgsql-cluster-manager
 PREFIX=/usr/local
 BUILD_COMMAND=go build -ldflags "-X github.com/gocardless/pgsql-cluster-manager/command.Version=$(VERSION)"
