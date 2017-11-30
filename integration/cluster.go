@@ -195,7 +195,7 @@ func StartCluster(t *testing.T, ctx context.Context) *Cluster {
 	workspaceDirectory, found := os.LookupEnv("PGSQL_WORKSPACE")
 	require.True(t, found, "test requires PGSQL_WORKSPACE to be set")
 
-	debs, _ := filepath.Glob(fmt.Sprintf("%s/*.deb", workspaceDirectory))
+	debs, _ := filepath.Glob(fmt.Sprintf("%s/dist/*.deb", workspaceDirectory))
 	require.Equal(t, 1, len(debs), "PGSQL_WORKSPACE needs to contain a single .deb")
 
 	pg01 := createMember("pg01", workspaceDirectory)

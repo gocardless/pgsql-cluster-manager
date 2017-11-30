@@ -1,0 +1,25 @@
+# View goreleaser docs for configuration settings
+# https://goreleaser.com
+
+builds:
+  - binary: pgsql-cluster-manager
+    ldflags: -X github.com/gocardless/pgsql-cluster-manager/command.Version={{.Version}}
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+
+dockers:
+  - image: gocardless/pgsql-cluster-manager
+    dockerfile: Dockerfile
+  - image: gocardless/pgsql-cluster-manager-circleci
+    dockerfile: .circleci/Dockerfile
+
+fpm:
+  vendor:      GoCardless
+  homepage:    https://github.com/gocardless/pgsql-cluster-manager
+  maintainer:  GoCardless Engineering <engineering@gocardless.com>
+  description: Orchestrator for Postgres clustering with corosync/pacemaker/etcd
+  formats:
+    - deb
