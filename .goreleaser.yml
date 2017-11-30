@@ -10,11 +10,16 @@ builds:
     goarch:
       - amd64
 
-dockers:
-  - image: gocardless/pgsql-cluster-manager
-    dockerfile: Dockerfile
-  - image: gocardless/pgsql-cluster-manager-circleci
-    dockerfile: .circleci/Dockerfile
+brew:
+  github:
+    owner: gocardless
+    name: homebrew-taps
+  commit_author:
+    name: GoCardless Engineering (goreleaser)
+    email: engineering@gocardless.com
+  folder: Formula
+  homepage: https://github.com/gocardless/pgsql-cluster-manager
+  description: Orchestrator for Postgres clustering with corosync/pacemaker/etcd
 
 fpm:
   vendor:      GoCardless
