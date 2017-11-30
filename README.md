@@ -34,3 +34,19 @@ To publish a new version of the Docker image, run:
 ```bash
 make publish-circleci-dockerfile
 ```
+
+## Releasing
+
+We use [goreleaser](https://github.com/goreleaser/goreleaser) to create releases
+for pgsql-cluster-manager. This enables us to effortlessly create new releases
+with all associated artifacts to various destinations, such as GitHub and
+homebrew taps.
+
+To generate a new release, you must first tag the desired release commit and
+then run `goreleaser` with a GitHub token for an account with write access to
+this repo.
+
+```sh
+git tag v0.0.5 HEAD
+GITHUB_TOKEN="..." goreleaser
+```
