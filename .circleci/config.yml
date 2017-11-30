@@ -48,7 +48,7 @@ jobs:
           name: Unit test
           command: make test
 
-  build-deb:
+  build-dist:
     <<: *docker_build_image
     steps:
       - checkout
@@ -57,11 +57,14 @@ jobs:
       - *cache_bundle_for_lockfile
       - *cache_bundle
       - run:
-          name: Prepare .deb and integration tests
-          command: make deb build-integration
+          name: Generate dist
+          command: goreleaser --rm-dist --skip-publish --skip-validate
+      - run:
+          name: Generate integration test binary
+          command: make build-integration
       - persist_to_workspace:
           root: /home/circleci/go/src/github.com/gocardless/pgsql-cluster-manager
-          paths: ['*.deb', 'integration.test']
+          paths: ['dist', 'integration.test']
 
   integration:
     machine: true
@@ -87,6 +90,6 @@ workflows:
   build-integration:
     jobs:
       - unit
-      - build-deb
+      - build-dist
       - integration:
-          requires: [build-deb]
+          requires: [build-dist]
