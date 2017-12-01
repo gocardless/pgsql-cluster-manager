@@ -1280,8 +1280,8 @@ user_recovery_conf() {
 #
 get_master_id() {
   cibadmin --query \
-    --xpath "//node/instance_attributes/nvpair[@value='LATEST']/../.." | \
-    perl -wnl -e '/<node.* id="(\d+)"/ and print $1'
+    --xpath "//node/instance_attributes/nvpair[@value='LATEST']/../.." --node-path | \
+    perl -wnl -e "/\@id='(\d+)'/ and print \$1"
 }
 
 get_master_ip() {
