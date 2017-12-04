@@ -183,7 +183,7 @@ function start_pgbouncer() {
 
 function start_cluster_manager() {
   log "Installing pgsql-cluster-manager"
-  dpkg -i /pgsql-cluster-manager/dist/*.deb
+  cp -v /pgsql-cluster-manager/pgsql-cluster-manager.linux_amd64 /usr/local/bin/pgsql-cluster-manager
   cat <<EOF > /usr/local/bin/pgsql-cluster-manager.sh
 #!/bin/bash
 

@@ -1,29 +1,6 @@
 version: 2
 
 references:
-  bundle_install: &bundle_install
-    run:
-      name: Bundle
-      command: bundle install --path vendor/bundle --jobs=4 --retry=3
-
-  cache_bundle_for_lockfile: &cache_bundle_for_lockfile
-    save_cache:
-      key: v3-ruby2.4.1-Gemfile-{{ checksum "Gemfile.lock" }}
-      paths:
-        - vendor/bundle
-
-  cache_bundle: &cache_bundle
-    save_cache:
-      key: v3-ruby2.4.1-Gemfile
-      paths:
-        - vendor/bundle
-
-  restore_bundle: &restore_bundle
-    restore_cache:
-      keys:
-        - v3-ruby2.4.1-Gemfile-{{ checksum "Gemfile.lock" }}
-        - v3-ruby2.4.1-Gemfile
-
   docker_login: &docker_login
     run:
       name: Login to GoCardless DockerHub
@@ -45,26 +22,22 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Unit test
+          name: Run unit tests
           command: make test
 
-  build-dist:
+  build:
     <<: *docker_build_image
     steps:
       - checkout
-      - *restore_bundle
-      - *bundle_install
-      - *cache_bundle_for_lockfile
-      - *cache_bundle
       - run:
-          name: Generate dist
-          command: goreleaser --rm-dist --skip-publish --skip-validate
+          name: Build linux test binary
+          command: make build-linux
       - run:
-          name: Generate integration test binary
+          name: Build integration test binary
           command: make build-integration
       - persist_to_workspace:
           root: /home/circleci/go/src/github.com/gocardless/pgsql-cluster-manager
-          paths: ['dist', 'integration.test']
+          paths: ['pgsql-cluster-manager.linux_amd64', 'integration.test']
 
   integration:
     machine: true
@@ -90,6 +63,6 @@ workflows:
   build-integration:
     jobs:
       - unit
-      - build-dist
+      - build
       - integration:
-          requires: [build-dist]
+          requires: [build]
