@@ -1,11 +1,12 @@
 # pgsql-cluster-manager [![CircleCI](https://circleci.com/gh/gocardless/pgsql-cluster-manager.svg?style=svg&circle-token=38c8f4dc817216aa6a02b3bf67435fe2f1d72189)](https://circleci.com/gh/gocardless/pgsql-cluster-manager)
 
 `pgsql-cluster-manager` extends a standard highly-available Postgres setup
-(managed by [corosync](http://corosync.github.io/) and
-[pacemaker](http://www.linux-ha.org/wiki/Pacemaker)) for running in cloud
-environments, where using floating IPs to denote the primary node is difficult
-or impossible. In addition, `pgsql-cluster-manager` provides the ability to run
-zero-downtime migrations of the Postgres primary with a simple API trigger.
+(managed by [Corosync](http://corosync.github.io/) and
+[Pacemaker](http://www.linux-ha.org/wiki/Pacemaker)) enabling its use in cloud
+environments where using using floating IPs to denote the primary node is
+difficult or impossible. In addition, `pgsql-cluster-manager` provides the
+ability to run zero-downtime migrations of the Postgres primary with a simple
+API trigger.
 
 See [Playground](#playground) for how to start a Dockerised three node Postgres
 cluster with `pgsql-cluster-manager`.
@@ -25,17 +26,17 @@ cluster with `pgsql-cluster-manager`.
 
 ## Overview
 
-GoCardless run a highly available Postgres cluster using
-[corosync](http://corosync.github.io/) and
-[pacemaker](http://www.linux-ha.org/wiki/Pacemaker). Corosync provides an
+GoCardless runs a highly available Postgres cluster using
+[Corosync](http://corosync.github.io/) and
+[Pacemaker](http://www.linux-ha.org/wiki/Pacemaker). Corosync provides an
 underlying quorum mechanism while pacemaker provides the ability to register
 plugins that can manage arbitrary services, detecting and recovering from node
 and service-level failures.
 
-The typical Postgres setup with corosync & pacemaker uses a floating IP attached
+The typical Postgres setup with Corosync & Pacemaker uses a floating IP attached
 to the Postgres primary node. Clients connect to this IP, and during failover
 the IP is moved to the new primary. Managing portable IPs in Cloud providers
-such as AWS and Google is more difficult than a classic data center, and so we
+such as AWS and GCP is more difficult than a classic data center, and so we
 built `pgsql-cluster-manager` to adapt our cluster for these environments.
 
 `pgsql-cluster-manager` makes use of [etcd](https://github.com/coreos/etcd) to
@@ -44,16 +45,17 @@ appropriate node. We can view `pgsql-cluster-manager` as three distinct services
 which each conceptually 'manage' different components:
 
 - `cluster` extracts cluster state from pacemaker and pushes to etcd
-- `proxy` ensures our Postgres proxy is reloaded with the current primary IP
+- `proxy` ensures our Postgres proxy (PgBouncer) is reloaded with the current
+  primary IP
 - `migration` controls a zero-downtime migration flow
 
 ### Playground
 
 We have created a Dockerised sandbox environment that boots a three node
 Postgres cluster with the `pgsql-cluster-manager` services installed. We
-strongly recommend playing around in this environment to develop an understand
-of how this setup works and to simulate failure situations (network partitions,
-node crashes, etc).
+strongly recommend playing around in this environment to develop an
+understanding of how this setup works and to simulate failure situations
+(network partitions, node crashes, etc).
 
 **It also helps to have this playground running while reading through the README,
 in order to try out the commands you see along the way.**
@@ -61,11 +63,11 @@ in order to try out the commands you see along the way.**
 First install [Docker](https://docker.io/) and Golang >=1.9, then run:
 
 ```
+# Clone into your GOPATH
 $ git clone https://github.com/gocardless/pgsql-cluster-manager
 $ cd pgsql-cluster-manager
 $ gem install fpm                             # required for *.deb
-$ go get github.com/goreleaser/goreleaser     # used to generate dist
-$ make dist                                   # create a *.deb package in dist/
+$ make deb                                    # create a *.deb package in dist/
 
 $ cd docker/postgres-member && ./start
 Sending build context to Docker daemon 4.332 MB
@@ -103,11 +105,13 @@ script (for convenience) will enter you into a docker shell in `pg01`.
 Connecting to any of the other containers can be achieved with `docker exec -it
 pg0X /bin/bash`.
 
+If you have issues running `make dist` on OS X then make sure you have gnu-tar
+installed (`brew install gnu-tar`) so that `fpm` can use `-C` syntax.
 
 ### Node Roles
 
 The `pgsql-cluster-manager` services are expected to run on two types of
-machine: the node that are members of the Postgres cluster, and the machines
+machine: the nodes that are members of the Postgres cluster, and the machines
 that will host applications which will connect to the cluster.
 
 ![Two node types, Postgres and App machines](res/node_roles.svg)
@@ -119,8 +123,12 @@ want to run a docker container on `app01` and have that container connect to our
 Postgres cluster, while being resilient to Postgres failover.
 
 It's worth noting that our playground configures only nodes of the Postgres
-type, and you should use your own machine to fit the role of an app node (minus
-the PgBouncer).
+type, as this is sufficient to test out and play with the cluster. In production
+you'd run app nodes so that applications can connect to the local PgBouncer,
+which in turn knows how to route to the primary.
+
+For playing around, it's totally fine to connect to one of the cluster nodes
+PgBouncers directly from your host machine.
 
 #### Postgres Nodes
 
@@ -165,7 +173,7 @@ root@pg01:/$ ETCDCTL_API=3 etcdctl get --prefix /
 
 #### App Nodes
 
-We now have the Postgres nodes running PgBouncer proxies that live update their
+We now have the Postgres nodes running PgBouncer proxies that live-update their
 configuration to point connections to the latest Postgres primary. Our aim is
 now to have app clients inside docker containers to connect to our Postgres
 cluster without having to introduce routing decisions into the client code.
@@ -251,6 +259,15 @@ This flow is subject to several timeouts that should be tuned to match your
 pacemaker cluster settings. See `pgsql-cluster-manager migrate --help` for an
 explanation of each timeout and how it affects the migration. This flow can be
 run from anywhere that has access to the etcd and Postgres migration API.
+
+The Postgres node that was originally the primary is now turned off, and won't
+rejoin the cluster until the lockfile is removed. You can bring the node back
+into the cluster by doing the following:
+
+```
+root@pg02:/$ rm /var/lib/postgresql/9.4/tmp/PGSQL.lock
+root@pg02:/$ crm resource cleanup msPostgresql
+```
 
 ## Configuration
 
