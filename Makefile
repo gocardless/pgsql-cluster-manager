@@ -1,11 +1,11 @@
 PROG=pgsql-cluster-manager
-BUILD_COMMAND=go build -ldflags "-X github.com/gocardless/pgsql-cluster-manager/command.Version=$(git rev-parse --short HEAD)-dev"
+BUILD_COMMAND=go build -ldflags "-X github.com/gocardless/pgsql-cluster-manager/command.Version=$(shell git rev-parse --short HEAD)-dev"
 
 .PHONY: build build-integration test clean build-postgres-member-dockerfile publish-dockerfile publish-circleci-dockerfile
 
 build:
 	go generate ./...
-	go build -o $(PROG) main.go
+	$(BUILD_COMMAND) -o $(PROG) main.go
 
 build-integration:
 	go test -tags integration -c github.com/gocardless/pgsql-cluster-manager/integration
@@ -25,8 +25,8 @@ build-postgres-member-dockerfile:
 	docker build -t gocardless/postgres-member docker/postgres-member
 
 publish-dockerfile:
-	docker build -t gocardless/pgsql-cluster-manager . \
-		&& docker push gocardless/pgsql-cluster-manager
+	docker build -t gocardless/pgsql-cluster-manager-base . \
+		&& docker push gocardless/pgsql-cluster-manager-base
 
 publish-circleci-dockerfile:
 	docker build -t gocardless/pgsql-cluster-manager-circleci .circleci \

@@ -76,8 +76,8 @@ jobs:
           at: workspace
       - *docker_login
       - run:
-          name: Pull gocardless/pgsql-cluster-manager base image
-          command: docker pull gocardless/pgsql-cluster-manager
+          name: Pull gocardless/pgsql-cluster-manager-base image
+          command: docker pull gocardless/pgsql-cluster-manager-base
       - run:
           name: Build postgres member image
           command: make build-postgres-member-dockerfile
