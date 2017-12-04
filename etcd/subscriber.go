@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/mvcc/mvccpb"
-	"github.com/Sirupsen/logrus"
 	"golang.org/x/net/context"
 )
 
@@ -125,6 +125,10 @@ func (s *subscriber) bootHandlers(ctx context.Context) {
 
 		if err != nil {
 			s.logger.WithField("key", key).WithError(err).Errorf("etcd get failed")
+		}
+
+		if len(getResp.Kvs) == 0 {
+			s.logger.WithField("key", key).Warn("etcd key had no initial value (is supervise cluster running?)")
 		}
 
 		if len(getResp.Kvs) == 1 {
