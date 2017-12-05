@@ -66,8 +66,7 @@ First install [Docker](https://docker.io/) and Golang >=1.9, then run:
 # Clone into your GOPATH
 $ git clone https://github.com/gocardless/pgsql-cluster-manager
 $ cd pgsql-cluster-manager
-$ gem install fpm                             # required for *.deb
-$ make deb                                    # create a *.deb package in dist/
+$ make build-linux
 
 $ cd docker/postgres-member && ./start
 Sending build context to Docker daemon 4.332 MB
@@ -104,9 +103,6 @@ with the appropriate configuration, and will start a full Postgres cluster. The
 script (for convenience) will enter you into a docker shell in `pg01`.
 Connecting to any of the other containers can be achieved with `docker exec -it
 pg0X /bin/bash`.
-
-If you have issues running `make dist` on OS X then make sure you have gnu-tar
-installed (`brew install gnu-tar`) so that `fpm` can use `-C` syntax.
 
 ### Node Roles
 
