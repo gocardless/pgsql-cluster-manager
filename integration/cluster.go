@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -195,8 +194,8 @@ func StartCluster(t *testing.T, ctx context.Context) *Cluster {
 	workspaceDirectory, found := os.LookupEnv("PGSQL_WORKSPACE")
 	require.True(t, found, "test requires PGSQL_WORKSPACE to be set")
 
-	debs, _ := filepath.Glob(fmt.Sprintf("%s/dist/*.deb", workspaceDirectory))
-	require.Equal(t, 1, len(debs), "PGSQL_WORKSPACE needs to contain a single .deb")
+	_, err = os.Stat(fmt.Sprintf("%s/pgsql-cluster-manager.linux_amd64", workspaceDirectory))
+	require.Nil(t, err, "Need pgsql-cluster-manager.linux_amd64 binary")
 
 	pg01 := createMember("pg01", workspaceDirectory)
 	pg02 := createMember("pg02", workspaceDirectory)

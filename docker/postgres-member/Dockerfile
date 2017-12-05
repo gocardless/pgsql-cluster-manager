@@ -1,6 +1,6 @@
-# Runs on-top of the pgsql-cluster-manager base image to install an appropriate test
+# Runs on-top of the pgsql-cluster-manager-base image to install an appropriate test
 # Postgres setup
-FROM gocardless/pgsql-cluster-manager
+FROM gocardless/pgsql-cluster-manager-base
 
 # Install Postgres configuration, including an empty data directory
 RUN rm -rf /var/lib/postgresql/9.4/main

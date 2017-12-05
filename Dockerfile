@@ -1,4 +1,5 @@
-# Generates an image that can be used as a base for dependencies
+# Generates an image that can be used as a base for building
+# pgsql-cluster-manager and also running integration test environments.
 FROM ubuntu:trusty
 
 ENV POSTGRESQL_VERSION=9.4 PGBOUNCER_VERSION=1.7.2-*
