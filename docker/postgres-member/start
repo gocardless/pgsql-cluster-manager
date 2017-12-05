@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Starts a cluster, booting into a bash session inside pg01 that on exit will
-# kill and clean-up the containers.
+# Starts a cluster, booting into a bash session inside pg01. Logging into other
+# machines can be done using docker exec:
+#
+# $ docker exec -it pg0X /bin/bash
 
 # run-container => prints <container-id>
 function run-container() {
@@ -28,6 +30,3 @@ docker exec --detach pg02 /bin/start-cluster "$PG01" "$PG02" "$PG03"
 docker exec --detach pg03 /bin/start-cluster "$PG01" "$PG02" "$PG03"
 
 docker exec -it pg01 /bin/bash
-
-docker kill pg01 pg02 pg03
-docker rm pg01 pg02 pg03
