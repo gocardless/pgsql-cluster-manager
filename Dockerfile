@@ -2,7 +2,7 @@
 # pgsql-cluster-manager and also running integration test environments.
 FROM ubuntu:trusty
 
-ENV POSTGRESQL_VERSION=9.4 PGBOUNCER_VERSION=1.7.2-*
+ENV POSTGRESQL_VERSION=9.4 PGBOUNCER_VERSION=1.8.1-*
 RUN set -x \
     && apt-get update \
     && apt-get install -y \
