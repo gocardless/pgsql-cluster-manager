@@ -109,6 +109,6 @@ func migrateCommandFunc(cmd *cobra.Command, args []string) {
 	}
 
 	if err := migration.NewMigration(cfg).Run(ctx); err != nil {
-		logger.WithError(err).Error("Migration failed")
+		logger.WithError(err).Fatal("Failed to run migration, PGBouncers have been resumed")
 	}
 }

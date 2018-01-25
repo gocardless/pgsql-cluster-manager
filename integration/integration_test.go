@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestIntegration(t *testing.T) {
+func TestIntegration_migrationSuccessful(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -98,7 +98,7 @@ func TestIntegration(t *testing.T) {
 		return resp
 	}
 
-	runMigration := func(finish chan interface{}) {
+	runMigration := func(result chan error, args ...string) {
 		defer func(begin time.Time) {
 			fmt.Printf("migrate command executed in %.2fs\n", time.Since(begin).Seconds())
 		}(time.Now())
@@ -111,12 +111,11 @@ func TestIntegration(t *testing.T) {
 			"--etcd-namespace", "/postgres",
 			"--etcd-endpoints", "pg01:2379,pg02:2379,pg03:2379",
 			"--migration-api-endpoints", "pg01:8080,pg02:8080,pg03:8080",
+			args...,
 		)
 
 		fmt.Println(string(output))
-		assert.Nil(t, err, "migration exited with error")
-
-		finish <- struct{}{}
+		finish <- err
 	}
 
 	waitUntilMaster := func(node *docker.Container) {
@@ -177,12 +176,32 @@ func TestIntegration(t *testing.T) {
 	require.Equal(t, 1, len(resp.Kvs), "could not find master key in etcd")
 	require.Equal(t, masterAddress, string(resp.Kvs[0].Value), "etcd master key does not equal host IP")
 
+	// We're going to run a couple of migrations, and we want to validate that the migration
+	// behaved as we expected by inspecting the error returned from the exec.
+	migrationResults := make(chan error)
+
+	// Start a transaction, which should prevent us from successfully pausing PGBouncer,
+	// then run a migration to check we fail
+	txact, err := conn.Begin()
+	require.Nil(t, err, "failed to start transaction")
+
+	go runMigration(migrationResults, "--pause-timeout", "1s", "--pause-expiry", "1s")
+
+	select {
+	case <-time.After(10 * time.Second):
+		require.Fail(t, "timed out waiting for the migration to fail due to on-going transactions")
+	case err = <-migrationResults:
+		fmt.Printf("err=%+v\n", err)
+		require.NotNil(t, err, "migration should have failed due to on-going transaction, but didn't")
+	}
+
+	require.Nil(t, txact.Rollback())
+
 	// Now we need to migrate the master to the sync. This will test whether PGBouncer
 	// on the other nodes will switch to point at the new master. We do this asynchronously
 	// because the execution will block, and we want to be monitoring the cluster during
 	// this period.
-	migrationFinished := make(chan interface{})
-	go runMigration(migrationFinished)
+	go runMigration(migrationResults)
 
 	waitUntilMaster(sync)
 	waitUntilConnectedTo(conn, sync)
@@ -190,7 +209,7 @@ func TestIntegration(t *testing.T) {
 	select {
 	case <-time.After(10 * time.Second):
 		assert.Fail(t, "timed out waiting for the migration script to finish")
-	case <-migrationFinished:
-		// success!
+	case <-migrationResults:
+		assert.Nil(t, err, "migration was supposed to succeed, but failed instead")
 	}
 }
