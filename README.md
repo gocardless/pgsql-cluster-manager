@@ -66,6 +66,7 @@ First install [Docker](https://docker.io/) and Golang >=1.9, then run:
 # Clone into your GOPATH
 $ git clone https://github.com/gocardless/pgsql-cluster-manager
 $ cd pgsql-cluster-manager
+$ go get github.com/gocardless/pgsql-cluster-manager/command
 $ make build-linux
 
 $ cd docker/postgres-member && ./start
