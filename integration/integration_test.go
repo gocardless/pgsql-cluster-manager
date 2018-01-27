@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestIntegration_migrationSuccessful(t *testing.T) {
+func TestIntegration_migration(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -106,16 +106,21 @@ func TestIntegration_migrationSuccessful(t *testing.T) {
 		fmt.Println("running migrate using api...")
 		output, err := cluster.Executor().CombinedOutput(
 			ctx,
-			"pgsql-cluster-manager", "migrate",
-			"--log-level", "debug",
-			"--etcd-namespace", "/postgres",
-			"--etcd-endpoints", "pg01:2379,pg02:2379,pg03:2379",
-			"--migration-api-endpoints", "pg01:8080,pg02:8080,pg03:8080",
-			args...,
+			"pgsql-cluster-manager",
+			append(
+				[]string{
+					"migrate",
+					"--log-level", "debug",
+					"--etcd-namespace", "/postgres",
+					"--etcd-endpoints", "pg01:2379,pg02:2379,pg03:2379",
+					"--migration-api-endpoints", "pg01:8080,pg02:8080,pg03:8080",
+				},
+				args...,
+			)...,
 		)
 
 		fmt.Println(string(output))
-		finish <- err
+		result <- err
 	}
 
 	waitUntilMaster := func(node *docker.Container) {
@@ -209,7 +214,7 @@ func TestIntegration_migrationSuccessful(t *testing.T) {
 	select {
 	case <-time.After(10 * time.Second):
 		assert.Fail(t, "timed out waiting for the migration script to finish")
-	case <-migrationResults:
+	case err = <-migrationResults:
 		assert.Nil(t, err, "migration was supposed to succeed, but failed instead")
 	}
 }

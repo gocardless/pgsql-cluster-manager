@@ -7,7 +7,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/lib/pq"
+	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -103,7 +103,7 @@ func TestPause(t *testing.T) {
 		// that the Pause command will succeed in this case, as it has no work to do.
 		{
 			"when already paused",
-			&pq.Error{Code: "08P01", Message: "already suspended/paused"},
+			pgx.PgError{Code: "08P01", Message: "already suspended/paused"},
 			func(t *testing.T, err error) {
 				assert.Nil(t, err, "expected Pause to return no error")
 			},
@@ -188,7 +188,7 @@ func TestResume(t *testing.T) {
 		},
 		{
 			"when already resumed",
-			&pq.Error{Code: "08P01", Message: "Pooler is not paused/suspended"},
+			pgx.PgError{Code: "08P01", Message: "Pooler is not paused/suspended"},
 			func(t *testing.T, err error) {
 				assert.Nil(t, err, "expected Resume to return no error")
 			},

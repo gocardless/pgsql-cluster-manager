@@ -3,7 +3,12 @@ package pgbouncer
 import (
 	"context"
 	"database/sql"
-	"fmt"
+	"strconv"
+
+	"github.com/jackc/pgx"
+	"github.com/jackc/pgx/pgtype"
+	"github.com/jackc/pgx/stdlib"
+	"github.com/pkg/errors"
 )
 
 type executor interface {
@@ -36,17 +41,37 @@ func (e AuthorizedExecutor) ExecContext(ctx context.Context, query string, param
 }
 
 func (e AuthorizedExecutor) connection() (*sql.DB, error) {
-	connStr := fmt.Sprintf(
-		"user=%s dbname=%s host=%s port=%s connect_timeout=1",
-		e.User,
-		e.Database,
-		e.SocketDir,
-		e.Port,
-	)
-
-	if e.Password != "" {
-		connStr = fmt.Sprintf("%s password=%s", connStr, e.Password)
+	port, err := strconv.Atoi(e.Port)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to parse valid port number")
 	}
 
-	return sql.Open("postgres", connStr)
+	driverConfig := stdlib.DriverConfig{
+		ConnConfig: pgx.ConnConfig{
+			Database:      e.Database,
+			User:          e.User,
+			Password:      e.Password,
+			Host:          e.SocketDir,
+			Port:          uint16(port),
+			RuntimeParams: map[string]string{"client_encoding": "UTF8"},
+			// We need to use SimpleProtocol in order to communicate with PgBouncer
+			PreferSimpleProtocol: true,
+			CustomConnInfo: func(_ *pgx.Conn) (*pgtype.ConnInfo, error) {
+				connInfo := pgtype.NewConnInfo()
+				connInfo.InitializeDataTypes(map[string]pgtype.OID{
+					"int4":    pgtype.Int4OID,
+					"name":    pgtype.NameOID,
+					"oid":     pgtype.OIDOID,
+					"text":    pgtype.TextOID,
+					"varchar": pgtype.VarcharOID,
+				})
+
+				return connInfo, nil
+			},
+		},
+	}
+
+	stdlib.RegisterDriverConfig(&driverConfig)
+
+	return sql.Open("pgx", driverConfig.ConnectionString("connect_timeout=1"))
 }
