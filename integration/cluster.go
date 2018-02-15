@@ -139,6 +139,10 @@ func (e dockerExecutor) CombinedOutput(ctx context.Context, name string, args ..
 		err = errors.New("exec'ed command has not finished")
 	}
 
+	if err == nil && execStatus.ExitCode != 0 {
+		err = fmt.Errorf("command exited with status %d", execStatus.ExitCode)
+	}
+
 	return output.Bytes(), err
 }
 

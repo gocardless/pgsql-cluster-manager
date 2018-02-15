@@ -10,7 +10,7 @@ import (
 	"os"
 	"regexp"
 
-	"github.com/lib/pq"
+	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
 )
 
@@ -148,7 +148,7 @@ const AlreadyResumedError = "Pooler is not paused/suspended"
 // connection.
 func (b *PGBouncer) Pause(ctx context.Context) error {
 	if _, err := b.Executor.ExecContext(ctx, `PAUSE;`); err != nil {
-		if err, ok := err.(*pq.Error); ok {
+		if err, ok := err.(pgx.PgError); ok {
 			if string(err.Code) == PoolerError && err.Message == AlreadyPausedError {
 				return nil
 			}
@@ -163,7 +163,7 @@ func (b *PGBouncer) Pause(ctx context.Context) error {
 // Resume will remove any applied pauses to PGBouncer
 func (b *PGBouncer) Resume(ctx context.Context) error {
 	if _, err := b.Executor.ExecContext(ctx, `RESUME;`); err != nil {
-		if err, ok := err.(*pq.Error); ok {
+		if err, ok := err.(pgx.PgError); ok {
 			if string(err.Code) == PoolerError && err.Message == AlreadyResumedError {
 				return nil
 			}

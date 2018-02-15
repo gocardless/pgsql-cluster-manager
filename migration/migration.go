@@ -65,12 +65,12 @@ func (m *migration) Run(ctx context.Context) error {
 
 	defer func() { m.Info("Releasing etcd migration lock"); m.Locker.Unlock(ctx) }()
 
+	defer m.Resume(ctx)
+
 	m.Info("Pausing all clients")
 	if err := m.Pause(ctx); err != nil {
 		return err
 	}
-
-	defer m.Resume(ctx)
 
 	m.Info("Running crm resource migrate")
 	resp, err := m.Clients[0].Migrate(timeout(m.PacemakerTimeout), &Empty{})
