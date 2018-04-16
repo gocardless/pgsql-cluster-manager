@@ -84,7 +84,10 @@ func newSuperviseClusterCommand() *cobra.Command {
 	flags := sc.Flags()
 
 	flags.String("postgres-master-crm-xpath", pacemaker.MasterXPath, "XPath selector into cibadmin that finds current master")
+	flags.Duration("etcd-timeout", 3*time.Second, "Timeout for etcd operations")
+
 	viper.BindPFlag("postgres-master-crm-xpath", flags.Lookup("postgres-master-crm-xpath"))
+	viper.BindPFlag("etcd-timeout", flags.Lookup("etcd-timeout"))
 
 	return sc
 }
@@ -99,6 +102,7 @@ func superviseClusterCommandFunc(cmd *cobra.Command, args []string) {
 
 	etcdHostKey := viper.GetString("postgres-master-etcd-key")
 	masterCrmXPath := viper.GetString("postgres-master-crm-xpath")
+	etcdTimeout := viper.GetDuration("etcd-timeout")
 
 	// Watch for changes to master node, calling the handler registered on the host key
 	crmSub := pacemaker.NewSubscriber(
@@ -108,7 +112,7 @@ func superviseClusterCommandFunc(cmd *cobra.Command, args []string) {
 	)
 
 	// We should only update the key if it's changed- Updater provides idempotent updates
-	crmSub.AddHandler(etcdHostKey, &etcd.Updater{client})
+	crmSub.AddHandler(etcdHostKey, &etcd.Updater{client, etcdTimeout})
 	crmSub.Start(ctx)
 }
 

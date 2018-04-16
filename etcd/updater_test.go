@@ -32,7 +32,8 @@ func TestUpdater(t *testing.T) {
 	defer cancel()
 
 	client := integration.StartEtcd(t, ctx)
-	updater := Updater{client}
+	timeout := 5 * time.Second
+	updater := Updater{client, timeout}
 
 	put := func(key, value string) *clientv3.PutResponse {
 		resp, err := client.Put(context.Background(), key, value)
