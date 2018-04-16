@@ -15,6 +15,7 @@ type subscriber struct {
 	logger           *logrus.Logger
 	handlers         map[string]handler
 	nodes            []*crmNode
+	nodeExpiry       time.Duration
 	newTicker        func() *time.Ticker
 	transform        func(context.Context, string) (string, error)
 	pacemakerTimeout time.Duration
@@ -23,10 +24,15 @@ type subscriber struct {
 // crmNode represents an element in the pacemaker cib XML, selected using the given XPath,
 // tracking change on the given Attribute.
 type crmNode struct {
-	Alias     string // name of handler to call when node changes value
-	XPath     string // query into the CRM
-	Attribute string // attribute that determines the value passed to handler
-	value     string // stored value previously associated with this node
+	Alias     string       // name of handler to call when node changes value
+	XPath     string       // query into the CRM
+	Attribute string       // attribute that determines the value passed to handler
+	last      *cachedValue // stored value previously associated with this node
+}
+
+type cachedValue struct {
+	seen  time.Time
+	value string
 }
 
 type pacemaker interface {
@@ -50,7 +56,7 @@ type handler interface {
 func WatchNode(alias, xpath, attribute string) func(*subscriber) {
 	return func(s *subscriber) {
 		s.nodes = append(s.nodes, &crmNode{
-			alias, xpath, attribute, "",
+			alias, xpath, attribute, nil,
 		})
 	}
 }
@@ -85,6 +91,7 @@ func NewSubscriber(options ...func(*subscriber)) *subscriber {
 		pacemaker:        NewPacemaker(),
 		logger:           nullLogger,             // for ease of use, default to using a null logger
 		nodes:            []*crmNode{},           // start with an empty node list
+		nodeExpiry:       30 * time.Second,       // expire nodes last value after this time
 		handlers:         map[string]handler{},   // use AddHandler to add handlers
 		pacemakerTimeout: 250 * time.Millisecond, // must be shorter than ticket interval
 		transform:        defaultTransform,
@@ -128,13 +135,13 @@ func (s *subscriber) processUpdatedNode(node *crmNode) {
 
 	contextLogger := s.logger.WithFields(map[string]interface{}{
 		"alias": node.Alias, "attribute": node.Attribute,
-		"xpath": node.XPath, "value": node.value,
+		"xpath": node.XPath, "value": node.last.value,
 		"handler": reflect.TypeOf(handler).String(),
 	})
 
 	contextLogger.Info("Observed node change, running handler")
 
-	if err := handler.Run(node.Alias, node.value); err != nil {
+	if err := handler.Run(node.Alias, node.last.value); err != nil {
 		contextLogger.WithError(err).Error("Failed to run handler")
 	}
 }
@@ -150,6 +157,7 @@ func (s *subscriber) watch(ctx context.Context) chan *crmNode {
 		for {
 			select {
 			case <-ticker.C:
+				s.expireCache()
 				s.logger.Debug("Polling pacemaker cib...")
 
 				timeoutCtx, cancel := context.WithTimeout(ctx, s.pacemakerTimeout)
@@ -166,6 +174,18 @@ func (s *subscriber) watch(ctx context.Context) chan *crmNode {
 	}()
 
 	return watchChan
+}
+
+// expireCache erases the last seen value for each node, ensuring that the next time we
+// scrape pacemaker, we'll push the value to our handlers. This prevents etcd from losing
+// the value and never having it re-populated, as we think it's never been changed.
+func (s *subscriber) expireCache() {
+	for _, node := range s.nodes {
+		if node.last != nil && time.Since(node.last.seen) > s.nodeExpiry {
+			s.logger.WithField("node", node.Alias).Info("Expiring cached value for node...")
+			node.last = nil
+		}
+	}
 }
 
 // updateNodes queries crm to find current node values, updates the value on each node and
@@ -189,8 +209,12 @@ func (s *subscriber) updateNodes(ctx context.Context, updated chan *crmNode) err
 			return err
 		}
 
-		if node.value != value {
-			node.value = value
+		if node.last == nil || node.last.value != value {
+			node.last = &cachedValue{
+				value: value,
+				seen:  time.Now(),
+			}
+
 			updated <- node
 		}
 	}
