@@ -44,6 +44,8 @@ func init() {
 	flags.String("etcd-namespace", "", "Namespace all requests to etcd under this value")
 	flags.StringSlice("etcd-endpoints", []string{"http://127.0.0.1:2379"}, "gRPC etcd endpoints")
 	flags.Duration("etcd-dial-timeout", 3*time.Second, "Timeout when connecting to etcd")
+	flags.Duration("etcd-keep-alive-time", 30*time.Second, "Time after which client pings server to check transport")
+	flags.Duration("etcd-keep-alive-timeout", 5*time.Second, "Timeout for the keep alive probe")
 	flags.String("postgres-master-etcd-key", "/master", "etcd key that stores current Postgres primary")
 	flags.String("log-level", "info", "Log level, one of [debug,info,warning,error,fatal,panic]")
 
@@ -52,6 +54,8 @@ func init() {
 	viper.BindPFlag("etcd-namespace", flags.Lookup("etcd-namespace"))
 	viper.BindPFlag("etcd-endpoints", flags.Lookup("etcd-endpoints"))
 	viper.BindPFlag("etcd-dial-timeout", flags.Lookup("etcd-dial-timeout"))
+	viper.BindPFlag("etcd-keep-alive-time", flags.Lookup("etcd-keep-alive-time"))
+	viper.BindPFlag("etcd-keep-alive-timeout", flags.Lookup("etcd-keep-alive-timeout"))
 	viper.BindPFlag("postgres-master-etcd-key", flags.Lookup("postgres-master-etcd-key"))
 	viper.BindPFlag("log-level", flags.Lookup("log-level"))
 
@@ -106,8 +110,10 @@ func LoadConfigFile() {
 func EtcdClientOrExit() *clientv3.Client {
 	client, err := clientv3.New(
 		clientv3.Config{
-			Endpoints:   viper.GetStringSlice("etcd-endpoints"),
-			DialTimeout: viper.GetDuration("etcd-dial-timeout"),
+			Endpoints:            viper.GetStringSlice("etcd-endpoints"),
+			DialTimeout:          viper.GetDuration("etcd-dial-timeout"),
+			DialKeepAliveTime:    viper.GetDuration("etcd-dial-keep-alive-time"),
+			DialKeepAliveTimeout: viper.GetDuration("etcd-dial-keep-alive-timeout"),
 		},
 	)
 

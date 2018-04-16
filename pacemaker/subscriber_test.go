@@ -54,6 +54,7 @@ func TestStart(t *testing.T) {
 
 	testCases := []struct {
 		name       string
+		configure  func(*subscriber)
 		nodes      []*crmNode
 		getParams  []string
 		getResults [][]*etree.Element
@@ -61,6 +62,7 @@ func TestStart(t *testing.T) {
 	}{
 		{
 			"when node changes, handler is called",
+			nil,
 			[]*crmNode{
 				&crmNode{
 					Alias:     "/master",
@@ -84,6 +86,7 @@ func TestStart(t *testing.T) {
 		},
 		{
 			"when nodes don't change between polling, handler is only called once",
+			nil,
 			[]*crmNode{
 				&crmNode{
 					Alias:     "/master",
@@ -105,7 +108,29 @@ func TestStart(t *testing.T) {
 			}(),
 		},
 		{
+			"when nodes don't change but our cache expires, handler is called twice",
+			func(s *subscriber) { s.nodeExpiry = 0 },
+			[]*crmNode{
+				&crmNode{
+					Alias:     "/master",
+					XPath:     "/resource[@id='PostgresqlVIP']",
+					Attribute: "name",
+				},
+			},
+			[]string{"/resource[@id='PostgresqlVIP']"},
+			[][]*etree.Element{
+				makeResources("larry"), // we'll run once to start, then again for a poll
+			},
+			func() map[string]handler {
+				h := new(fakeHandler)
+				h.On("Run", "/master", "larry").Return(nil).Twice()
+
+				return map[string]handler{"/master": h}
+			}(),
+		},
+		{
 			"when watching multiple nodes, we call the right handlers",
+			nil,
 			[]*crmNode{
 				&crmNode{
 					Alias:     "/master",
@@ -166,12 +191,17 @@ func TestStart(t *testing.T) {
 				logger.Level = logrus.DebugLevel
 
 				s := subscriber{
-					pacemaker: p,
-					logger:    logger,
-					nodes:     tc.nodes,
-					handlers:  tc.handlers,
-					transform: defaultTransform,
-					newTicker: func() *time.Ticker { return ticker },
+					pacemaker:  p,
+					logger:     logger,
+					nodes:      tc.nodes,
+					handlers:   tc.handlers,
+					transform:  defaultTransform,
+					nodeExpiry: time.Minute,
+					newTicker:  func() *time.Ticker { return ticker },
+				}
+
+				if tc.configure != nil {
+					tc.configure(&s)
 				}
 
 				s.Start(ctx)
