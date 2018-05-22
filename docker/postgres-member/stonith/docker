@@ -1,10 +1,13 @@
 #!/bin/sh
+
 # Simple stonith resource that can kill a node by issuing a docker kill command
 # through the standard docker cli. It is required that the host docker socket be
 # mounted into the container.
 #
 # This is not a proper stonith resource- the only real functionality here is to
 # kill the target container, which is enough for our simulation needs.
+#
+# http://wiki.linux-ha.org/ExternalStonithPlugins
 
 ACTION="$1"
 
@@ -20,6 +23,12 @@ print_metadata() {
     <shortdesc lang="en">ID of container to kill</shortdesc>
   </parameter>
 </parameters>
+<parameters>
+  <parameter name="server_name" unique="0">
+    <content type="string" />
+    <shortdesc lang="en">Name of the server to shoot</shortdesc>
+  </parameter>
+</parameters>
 EOF
 }
 
@@ -28,32 +37,36 @@ server_kill() {
 }
 
 server_monitor() {
-  if docker ps | grep "$server_id"; then
-    return 0
-  elif docker ps -a | grep "$server_id"; then
-    return 2
-  fi
-
-  return 1
+  case "$(docker inspect -f '{{.State.Running}}' "$server_id")" in
+    true)  return 0;;
+    false) return 2;;
+    *)     return 1;;
+  esac
 }
+
+log_exit() {
+  STATUS="$?"
+  log "Exit status $STATUS"
+  exit "$STATUS"
+}
+
+trap log_exit EXIT
 
 log "Running stonith..."
 
-case "$1" in
-  on)               exit 0;;
-  status)           exit 0;;
+case "$ACTION" in
+  reset)            server_kill         ; exit $?;;
+  off)              server_kill         ; exit $?;;
+  gethosts)         echo "$server_name" ; exit $?;;
+  status)           server_monitor      ; exit $?;;
+  getconfignames)   echo "server_id"    ; exit $?;;
 
-  meta-data)        print_metadata    && exit $?;;
-  getconfignames)   echo "server_id"  && exit $?;;
-  gethosts)         echo "$server_id" && exit $?;;
-  reset)            server_kill       && exit $?;;
-  off)              server_kill       && exit $?;;
-  monitor)          server_monitor    && exit $?;;
-
-  getinfo-devdescr) echo "Stonith resource for docker"; exit 0;;
   getinfo-devid)    echo "Docker"; exit 0;;
+  getinfo-devname)  echo "GoCardless"; exit 0;;
+  getinfo-devdescr) echo "Stonith resource for docker"; exit 0;;
   getinfo-devurl)   echo "github.com/gocardless/pgsql-cluster-manager"; exit 0;;
   getinfo-xml)      print_metadata; exit 0;;
 esac
 
-log "Can't handle this action"
+log "Failed to find supported, matching command"
+exit 3
