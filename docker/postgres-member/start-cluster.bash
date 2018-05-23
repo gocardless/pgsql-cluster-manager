@@ -126,11 +126,11 @@ primitive Postgresql ocf:heartbeat:pgsql \
     op stop timeout="60s" interval="0s" on-fail="block" \
     op notify timeout="60s" interval="0s"
 ms msPostgresql Postgresql params master-max=1 master-node-max=1 clone-max=3 clone-node-max=1 notify=true
-primitive shoot-pg01 stonith:external/docker params server_id="$PG01"
+primitive shoot-pg01 stonith:external/docker params server_id="$PG01" server_name="pg01"
 location fence_pg01 shoot-pg01 -inf: pg01
-primitive shoot-pg02 stonith:external/docker params server_id="$PG02"
+primitive shoot-pg02 stonith:external/docker params server_id="$PG02" server_name="pg02"
 location fence_pg02 shoot-pg02 -inf: pg02
-primitive shoot-pg03 stonith:external/docker params server_id="$PG03"
+primitive shoot-pg03 stonith:external/docker params server_id="$PG03" server_name="pg03"
 location fence_pg03 shoot-pg03 -inf: pg03
 commit
 end
