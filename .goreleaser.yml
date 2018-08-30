@@ -3,13 +3,20 @@
 
 ---
 builds:
-  - binary: pgsql-cluster-manager
-    ldflags: -X github.com/gocardless/pgsql-cluster-manager/command.Version={{.Version}}
+  - binary: pgcm
     goos:
       - darwin
       - linux
     goarch:
       - amd64
+    ldflags: >
+      -X github.com/gocardless/pgsql-cluster-manager/pkg/cmd.Version={{.Version}}
+      -X github.com/gocardless/pgsql-cluster-manager/pkg/cmd.Commit={{.Commit}}
+      -X github.com/gocardless/pgsql-cluster-manager/pkg/cmd.Date={{.Date}}
+      -a
+      -installsuffix cgo
+    env:
+      - CGO_ENABLED=0
 
 dockers:
   - image: gocardless/pgsql-cluster-manager
@@ -27,7 +34,7 @@ brew:
   homepage: https://github.com/gocardless/pgsql-cluster-manager
   description: Orchestrator for Postgres clustering with corosync/pacemaker/etcd
 
-fpm:
+nfpm:
   vendor: GoCardless
   homepage: https://github.com/gocardless/pgsql-cluster-manager
   maintainer: GoCardless Engineering <engineering@gocardless.com>

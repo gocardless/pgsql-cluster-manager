@@ -1,3 +1,4 @@
+---
 version: 2
 
 references:
@@ -7,7 +8,7 @@ references:
       command: docker login -u $DOCKER_USER -p $DOCKER_PASS
 
   docker_build_image: &docker_build_image
-    working_directory: /home/circleci/go/src/github.com/gocardless/pgsql-cluster-manager
+    working_directory: /go/src/github.com/gocardless/pgsql-cluster-manager
     docker:
       - image: gocardless/pgsql-cluster-manager-circleci:latest
         auth:
@@ -36,8 +37,8 @@ jobs:
           name: Build integration test binary
           command: make build-integration
       - persist_to_workspace:
-          root: /home/circleci/go/src/github.com/gocardless/pgsql-cluster-manager
-          paths: ['pgsql-cluster-manager.linux_amd64', 'integration.test']
+          root: /go/src/github.com/gocardless/pgsql-cluster-manager
+          paths: ['pgcm.linux_amd64', 'integration.test']
 
   integration:
     machine: true
