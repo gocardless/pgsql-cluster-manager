@@ -54,7 +54,7 @@ func TestGenerateConfig(t *testing.T) {
 
 		bouncer := &PgBouncer{
 			ConfigFile:         tempConfigFile.Name(),
-			ConfigTemplateFile: "./fixtures/pgbouncer.ini.template",
+			ConfigTemplateFile: "./testdata/pgbouncer.ini.template",
 		}
 
 		err := bouncer.GenerateConfig("curly.db.ams.gc.cx")

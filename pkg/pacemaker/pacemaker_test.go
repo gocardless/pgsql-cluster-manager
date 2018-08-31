@@ -28,19 +28,19 @@ func TestGet(t *testing.T) {
 	}{
 		{
 			"with sync / async / master",
-			"./fixtures/cib_sync_async_master.xml",
+			"./testdata/cib_sync_async_master.xml",
 			"pg03",
 			nil,
 		},
 		{
 			"with master / sync / died",
-			"./fixtures/cib_master_sync_died.xml",
+			"./testdata/cib_master_sync_died.xml",
 			"pg01",
 			nil,
 		},
 		{
 			"when we don't have quorum",
-			"./fixtures/cib_master_died_died.xml",
+			"./testdata/cib_master_died_died.xml",
 			"",
 			errors.New("no quorum"),
 		},
