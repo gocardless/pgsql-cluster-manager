@@ -19,7 +19,7 @@ type AuthorizedExecutor struct {
 }
 
 func (e AuthorizedExecutor) Query(ctx context.Context, query string, params ...interface{}) (*pgx.Rows, error) {
-	conn, err := e.connection()
+	conn, err := e.Connection()
 
 	if err != nil {
 		return nil, err
@@ -29,15 +29,17 @@ func (e AuthorizedExecutor) Query(ctx context.Context, query string, params ...i
 }
 
 func (e AuthorizedExecutor) Execute(ctx context.Context, query string, params ...interface{}) error {
-	rows, err := e.Query(ctx, query, params...)
-	if err == nil {
-		rows.Close()
+	conn, err := e.Connection()
+
+	if err != nil {
+		return err
 	}
 
+	_, err = conn.ExecEx(ctx, query, &pgx.QueryExOptions{SimpleProtocol: true}, params...)
 	return err
 }
 
-func (e AuthorizedExecutor) connection() (*pgx.Conn, error) {
+func (e AuthorizedExecutor) Connection() (*pgx.Conn, error) {
 	port, err := strconv.Atoi(e.Port)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to parse valid port number")

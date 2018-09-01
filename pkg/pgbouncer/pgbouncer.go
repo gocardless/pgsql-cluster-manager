@@ -146,7 +146,7 @@ func (b *PgBouncer) ShowDatabases(ctx context.Context) ([]Database, error) {
 // already in the given state.
 const PoolerError = "08P01"
 const AlreadyPausedError = "already suspended/paused"
-const AlreadyResumedError = "Pooler is not paused/suspended"
+const AlreadyResumedError = "pooler is not paused/suspended"
 
 // Pause causes PgBouncer to buffer incoming queries while waiting for those currently
 // processing to finish executing. The supplied timeout is applied to the Postgres
@@ -159,7 +159,7 @@ func (b *PgBouncer) Pause(ctx context.Context) error {
 			}
 		}
 
-		return errors.Wrap(err, "failed to pause PgBouncer")
+		return err
 	}
 
 	return nil
@@ -174,7 +174,7 @@ func (b *PgBouncer) Resume(ctx context.Context) error {
 			}
 		}
 
-		return errors.Wrap(err, "failed to resume PgBouncer")
+		return err
 	}
 
 	return nil
@@ -182,9 +182,11 @@ func (b *PgBouncer) Resume(ctx context.Context) error {
 
 // Reload will cause PgBouncer to reload configuration and live apply setting changes
 func (b *PgBouncer) Reload(ctx context.Context) error {
-	if err := b.Executor.Execute(ctx, `RELOAD;`); err != nil {
-		return errors.Wrap(err, "failed to reload PgBouncer")
-	}
+	return b.Executor.Execute(ctx, `RELOAD;`)
+}
 
-	return nil
+// Connect runs the most basic of commands (SHOW VERSION) against PgBouncer to ensure the
+// connection is alive.
+func (b *PgBouncer) Connect(ctx context.Context) error {
+	return b.Executor.Execute(ctx, `SHOW VERSION;`)
 }
