@@ -29,3 +29,11 @@
 [[override]]
   name = "github.com/docker/docker"
   revision = "a422774e593b33bd287d9890544ad9e09b380d8c"
+
+[[constraint]]
+  name = "github.com/onsi/gomega"
+  version = "1.4.1"
+
+[[override]]
+  source = "https://github.com/fsnotify/fsnotify/archive/v1.4.7.tar.gz"
+  name = "gopkg.in/fsnotify.v1"
