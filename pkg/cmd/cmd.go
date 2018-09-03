@@ -84,7 +84,7 @@ func NewPgcmCommand(ctx context.Context) *cobra.Command {
 	// Automatically clean-up resources when we receive a quit signal
 	ctx, cancel := context.WithCancel(ctx)
 	handleQuitSignal(func() {
-		logger.Log("event", "shutdown.start", "msg", "Received signal, shutting down...")
+		logger.Log("event", "shutdown.start", "msg", "received signal, shutting down")
 		cancel()
 	})
 
