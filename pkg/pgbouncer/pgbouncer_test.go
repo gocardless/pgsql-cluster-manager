@@ -3,18 +3,12 @@ package pgbouncer_test
 import (
 	"io/ioutil"
 	"os"
-	"testing"
 
 	"github.com/gocardless/pgsql-cluster-manager/pkg/pgbouncer"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
-
-func TestPgBouncer(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "pkg/pgbouncer")
-}
 
 var _ = Describe("PgBouncer", func() {
 	var (
@@ -52,9 +46,11 @@ var _ = Describe("PgBouncer", func() {
 			})
 
 			It("Returns error", func() {
-				Expect(bouncer.GenerateConfig("db.prod")).To(MatchError(
-					MatchRegexp("failed to read PgBouncer config template file"),
-				))
+				Expect(bouncer.GenerateConfig("db.prod")).To(
+					MatchError(
+						MatchRegexp("failed to read PgBouncer config template file"),
+					),
+				)
 			})
 		})
 	})

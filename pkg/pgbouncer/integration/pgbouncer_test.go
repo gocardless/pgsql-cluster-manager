@@ -12,7 +12,6 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	. "github.com/onsi/gomega/gstruct"
 )
 
 func tryEnviron(key, otherwise string) string {
@@ -78,23 +77,29 @@ var _ = Describe("PgBouncer", func() {
 
 	Describe("Reload", func() {
 		It("Succeeds, triggering config reload", func() {
-			Expect(bouncer.ShowDatabases(ctx)).To(ContainElement(
-				MatchFields(IgnoreExtras, Fields{
-					"Name": Equal(database),
-					"Host": Equal("{{.Host}}"),
-				}),
-			))
+			Expect(bouncer.ShowDatabases(ctx)).To(
+				ContainElement(
+					pgbouncer.Database{
+						Name: database,
+						Host: "{{.Host}}",
+						Port: port,
+					},
+				),
+			)
 
 			Expect(bouncer.GenerateConfig("new-host")).To(Succeed())
 			Expect(bouncer.Reload(ctx)).To(Succeed())
 			Eventually(readlogs).Should(ContainSubstring("LOG RELOAD command issued"))
 
-			Expect(bouncer.ShowDatabases(ctx)).To(ContainElement(
-				MatchFields(IgnoreExtras, Fields{
-					"Name": Equal(database),
-					"Host": Equal("new-host"),
-				}),
-			))
+			Expect(bouncer.ShowDatabases(ctx)).To(
+				ContainElement(
+					pgbouncer.Database{
+						Name: database,
+						Host: "new-host",
+						Port: port,
+					},
+				),
+			)
 		})
 	})
 
@@ -109,12 +114,14 @@ var _ = Describe("PgBouncer", func() {
 		Context("When session is blocking pause", func() {
 			connectToDatabase := func() *pgx.Conn {
 				executor := bouncer.Executor.(pgbouncer.AuthorizedExecutor)
-				conn, err := pgx.Connect(pgx.ConnConfig{
-					Host:     executor.SocketDir,
-					Port:     6432,
-					Database: database,
-					User:     user,
-				})
+				conn, err := pgx.Connect(
+					pgx.ConnConfig{
+						Host:     executor.SocketDir,
+						Port:     6432,
+						Database: database,
+						User:     user,
+					},
+				)
 
 				Expect(err).NotTo(HaveOccurred())
 				return conn
