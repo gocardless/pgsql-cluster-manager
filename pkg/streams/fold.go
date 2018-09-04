@@ -8,7 +8,7 @@ import (
 	kitlog "github.com/go-kit/kit/log"
 )
 
-type operation func(context.Context, *mvccpb.KeyValue) error
+type Operation func(context.Context, *mvccpb.KeyValue) error
 
 // RetryFoldOptions provides configuration to the RetryFold function
 type RetryFoldOptions struct {
@@ -19,7 +19,7 @@ type RetryFoldOptions struct {
 
 // RetryFold consumes all kvs from the `in` channel and attempts to run an operation on
 // them, retrying that operation ad-infinitum in case of errors.
-func RetryFold(logger kitlog.Logger, in <-chan *mvccpb.KeyValue, opt RetryFoldOptions, op operation) error {
+func RetryFold(logger kitlog.Logger, in <-chan *mvccpb.KeyValue, opt RetryFoldOptions, op Operation) error {
 	for kv := range in {
 		logger := withKv(logger, kv)
 
