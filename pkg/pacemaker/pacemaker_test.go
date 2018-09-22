@@ -1,197 +1,133 @@
 package pacemaker
 
 import (
-	"errors"
+	"fmt"
 	"io/ioutil"
-	"testing"
 
 	"golang.org/x/net/context"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/beevik/etree"
 	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
+
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 )
+
+var _ = Describe("Pacemaker", func() {
+	var (
+		ctx      = context.Background()
+		crm      *Pacemaker
+		executor *fakeExecutor
+	)
+
+	BeforeEach(func() {
+		executor = new(fakeExecutor)
+		crm = &Pacemaker{executor: executor}
+	})
+
+	Describe("Get", func() {
+		loadFixture := func(fixture string, mockErr error) {
+			content, err := ioutil.ReadFile(fixture)
+			Expect(err).NotTo(HaveOccurred())
+
+			executor.
+				On("CombinedOutput",
+					ctx, "cibadmin", []string{"--query", "--local"},
+				).
+				Return(content, mockErr)
+		}
+
+		get := func(xpath, attr string) string {
+			nodes, err := crm.Get(ctx, xpath)
+
+			Expect(err).NotTo(HaveOccurred())
+			Expect(nodes).To(HaveLen(1))
+
+			return nodes[0].SelectAttrValue(attr, "")
+		}
+
+		Context("With full cluster", func() {
+			BeforeEach(func() {
+				loadFixture("./testdata/cib_sync_async_master.xml", nil)
+			})
+
+			It("Finds master", func() {
+				Expect(get(MasterXPath, "uname")).To(Equal("pg03"))
+			})
+
+			It("Finds sync", func() {
+				Expect(get(SyncXPath, "uname")).To(Equal("pg01"))
+			})
+
+			It("Finds async", func() {
+				Expect(get(AsyncXPath, "uname")).To(Equal("pg02"))
+			})
+		})
+
+		Context("With no quorum", func() {
+			BeforeEach(func() {
+				loadFixture("./testdata/cib_master_died_died.xml", nil)
+			})
+
+			It("Returns error", func() {
+				_, err := crm.Get(ctx, MasterXPath)
+				Expect(err).To(MatchError(NoQuorumError{}))
+			})
+		})
+
+		Context("With missing async", func() {
+			BeforeEach(func() {
+				loadFixture("./testdata/cib_master_sync_died.xml", nil)
+			})
+
+			It("Returns nil for async", func() {
+				Expect(crm.Get(ctx, AsyncXPath)).To(Equal([]*etree.Element{nil}))
+			})
+		})
+	})
+
+	Describe("ResolveAddress", func() {
+		loadFixture := func(nodeID, fixture string, err error) {
+			executor.
+				On("CombinedOutput",
+					ctx, "corosync-cfgtool", []string{"-a", nodeID},
+				).
+				Return([]byte(fixture), err)
+		}
+
+		Context("When corosync-cfgtool works", func() {
+			BeforeEach(func() {
+				loadFixture("1", "172.17.0.4\n", nil)
+			})
+
+			It("Identifies node IP address", func() {
+				Expect(crm.ResolveAddress(ctx, "1")).To(Equal("172.17.0.4"))
+			})
+		})
+
+		Context("When nodeID is invalid", func() {
+			It("Returns error", func() {
+				_, err := crm.ResolveAddress(ctx, "invalid-node-id")
+				Expect(err).To(MatchError(InvalidNodeIDError("invalid-node-id")))
+			})
+		})
+
+		Context("When corosync-cfgtool returns error", func() {
+			BeforeEach(func() {
+				loadFixture("1", "", fmt.Errorf("exec: \"corosync-cfgtool\": executable file not found in $PATH"))
+			})
+
+			It("Returns error", func() {
+				_, err := crm.ResolveAddress(ctx, "1")
+				Expect(err).To(HaveOccurred())
+			})
+		})
+	})
+})
 
 type fakeExecutor struct{ mock.Mock }
 
 func (e fakeExecutor) CombinedOutput(ctx context.Context, name string, arg ...string) ([]byte, error) {
 	args := e.Called(ctx, name, arg)
 	return args.Get(0).([]byte), args.Error(1)
-}
-
-func TestGet(t *testing.T) {
-	testCases := []struct {
-		name    string
-		fixture string
-		value   string
-		err     error
-	}{
-		{
-			"with sync / async / master",
-			"./testdata/cib_sync_async_master.xml",
-			"pg03",
-			nil,
-		},
-		{
-			"with master / sync / died",
-			"./testdata/cib_master_sync_died.xml",
-			"pg01",
-			nil,
-		},
-		{
-			"when we don't have quorum",
-			"./testdata/cib_master_died_died.xml",
-			"",
-			errors.New("no quorum"),
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			fixture, fixtureErr := ioutil.ReadFile(tc.fixture)
-			require.Nil(t, fixtureErr)
-
-			executor := new(fakeExecutor)
-			executor.On("CombinedOutput", context.Background(), "cibadmin", []string{"--query", "--local"}).Return(fixture, nil)
-
-			nodes, err := Pacemaker{executor}.Get(context.Background(), MasterXPath)
-
-			executor.AssertExpectations(t)
-
-			if tc.err != nil {
-				if assert.Error(t, err, "expected Get() to return error") {
-					assert.Equal(t, tc.err.Error(), err.Error())
-				}
-			}
-
-			if tc.value != "" {
-				assert.Equal(t, 1, len(nodes), "expected only one node result")
-				assert.Equal(t, tc.value, nodes[0].SelectAttrValue("uname", ""))
-			}
-		})
-	}
-}
-
-func TestResolveAddress(t *testing.T) {
-	testCases := []struct {
-		name            string
-		nodeID          string
-		execOutput      []byte
-		execErr         error
-		expectedAddress string
-		expectedErr     error
-	}{
-		{
-			"when corosync-cfgtool returns no error",
-			"1",
-			[]byte("172.17.0.4\n"),
-			nil,
-			"172.17.0.4",
-			nil,
-		},
-		{
-			"when nodeID is invalid",
-			"invalid-node",
-			[]byte(""),
-			nil,
-			"",
-			errors.New("invalid nodeID, must be single integer: 'invalid-node'"),
-		},
-		{
-			"when corosync-cfgtool returns an error",
-			"1",
-			[]byte(""),
-			errors.New("exec: \"corosync-cfgtool\": executable file not found in $PATH"),
-			"",
-			errors.New("failed to run corosync-cfgtool: exec: \"corosync-cfgtool\": executable file not found in $PATH"),
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			bgCtx := context.Background()
-
-			executor := new(fakeExecutor)
-			executor.
-				On("CombinedOutput", bgCtx, "corosync-cfgtool", []string{"-a", tc.nodeID}).
-				Return(tc.execOutput, tc.execErr)
-
-			address, err := Pacemaker{executor}.ResolveAddress(bgCtx, tc.nodeID)
-
-			if err != nil {
-				assert.EqualValues(t, tc.expectedErr.Error(), err.Error())
-			}
-			assert.EqualValues(t, tc.expectedAddress, address)
-		})
-	}
-}
-
-func TestMigrate(t *testing.T) {
-	testCases := []struct {
-		name    string
-		execErr error // returned from executor
-		err     error // returned from Migrate
-	}{
-		{
-			"when migrate returns no error",
-			nil,
-			nil,
-		},
-		{
-			"when migrate returns an error",
-			errors.New("exit 255"),
-			errors.New("failed to execute crm migration: exit 255"),
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			executor := new(fakeExecutor)
-			executor.On("CombinedOutput", context.Background(), "crm", []string{
-				"resource", "migrate", "msPostgresql", "pg03",
-			}).Return([]byte(""), tc.execErr)
-
-			err := Pacemaker{executor}.Migrate(context.Background(), "pg03")
-
-			if err != nil {
-				assert.EqualValues(t, tc.err.Error(), err.Error())
-			}
-			executor.AssertExpectations(t)
-		})
-	}
-}
-
-func TestUnmigrate(t *testing.T) {
-	testCases := []struct {
-		name    string
-		execErr error // returned from executor
-		err     error // returned from Unmigrate
-	}{
-		{
-			"when unmigrate returns no error",
-			nil,
-			nil,
-		},
-		{
-			"when unmigrate returns an error",
-			errors.New("exit 255"),
-			errors.New("failed to execute crm resource unmigrate: exit 255"),
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			executor := new(fakeExecutor)
-			executor.On("CombinedOutput", context.Background(), "crm", []string{
-				"resource", "unmigrate", "msPostgresql",
-			}).Return([]byte(""), tc.execErr)
-
-			err := Pacemaker{executor}.Unmigrate(context.Background())
-
-			if err != nil {
-				assert.EqualValues(t, tc.err.Error(), err.Error())
-			}
-			executor.AssertExpectations(t)
-		})
-	}
 }

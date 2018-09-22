@@ -50,6 +50,12 @@ func NewPacemaker(options ...func(*Pacemaker)) *Pacemaker {
 	return p
 }
 
+type NoQuorumError struct{}
+
+func (e NoQuorumError) Error() string {
+	return "pacemaker reports no quorum, cannot get results"
+}
+
 // Get returns nodes from the cibadmin XML output, extracted using the given XPaths. If we
 // detect that pacemaker does not have quorum, then we error, as we should be able to rely
 // on values being correct with respect to the quorate.
@@ -69,7 +75,7 @@ func (p Pacemaker) Get(ctx context.Context, xpaths ...string) ([]*etree.Element,
 	// We don't want to be returning values if we don't have quorum. Those values would only
 	// ever be invalid to act upon.
 	if doc.FindElement("cib[@have-quorum='1']") == nil {
-		return nil, errors.New("no quorum")
+		return nil, NoQuorumError{}
 	}
 
 	for _, xpath := range xpaths {
@@ -79,12 +85,18 @@ func (p Pacemaker) Get(ctx context.Context, xpaths ...string) ([]*etree.Element,
 	return nodes, nil
 }
 
+type InvalidNodeIDError string
+
+func (e InvalidNodeIDError) Error() string {
+	return fmt.Sprintf("invalid nodeID, must be single integer: '%s'", e)
+}
+
 // ResolveAddress will find the IP address for a given node ID. Node IDs are numeric, but
 // we'll typically extract them from XML that will yield strings. Given we'll be passing
 // them as string executable arguments it makes sense to keep everything homomorphic.
 func (p Pacemaker) ResolveAddress(ctx context.Context, nodeID string) (string, error) {
 	if !regexp.MustCompile("^\\s*(\\d+)$").MatchString(nodeID) {
-		return "", fmt.Errorf("invalid nodeID, must be single integer: '%s'", nodeID)
+		return "", InvalidNodeIDError(nodeID)
 	}
 
 	output, err := p.CombinedOutput(ctx, "corosync-cfgtool", "-a", nodeID)
