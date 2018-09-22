@@ -1,5 +1,5 @@
 PROG=pgcm
-SRC=cmd/pgcm/main.go
+SRC=cmd/pgcm/pgcm.go
 VERSION=$(shell git rev-parse --short HEAD)-dev
 BUILD_COMMAND=go build -ldflags "-X github.com/gocardless/pgsql-cluster-manager/pkg/cmd.Version=$(VERSION)"
 
