@@ -24,6 +24,7 @@ type Pacemaker struct {
 	executor
 }
 
+//go:generate counterfeiter . executor
 type executor interface {
 	CombinedOutput(context.Context, string, ...string) ([]byte, error)
 }
@@ -34,20 +35,8 @@ func (e systemExecutor) CombinedOutput(ctx context.Context, name string, args ..
 	return exec.CommandContext(ctx, name, args...).CombinedOutput()
 }
 
-func WithExecutor(e executor) func(*Pacemaker) {
-	return func(c *Pacemaker) {
-		c.executor = e
-	}
-}
-
-func NewPacemaker(options ...func(*Pacemaker)) *Pacemaker {
-	p := &Pacemaker{systemExecutor{}}
-
-	for _, option := range options {
-		option(p)
-	}
-
-	return p
+func NewPacemaker() *Pacemaker {
+	return &Pacemaker{systemExecutor{}}
 }
 
 type NoQuorumError struct{}
