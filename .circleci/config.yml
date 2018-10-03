@@ -31,14 +31,11 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Build linux test binary
-          command: make build-linux
-      - run:
-          name: Build integration test binary
-          command: make build-integration
+          name: Build test binaries
+          command: make bin/pgcm.linux_amd64 bin/pgcm-acceptance
       - persist_to_workspace:
           root: /go/src/github.com/gocardless/pgsql-cluster-manager
-          paths: ['pgcm.linux_amd64', 'integration.test']
+          paths: ['bin/pgcm.linux_amd64', 'bin/pgcm-acceptance']
 
   integration:
     machine: true
@@ -54,10 +51,10 @@ jobs:
           command: docker pull gocardless/pgsql-cluster-manager-base
       - run:
           name: Build postgres member image
-          command: make build-postgres-member-dockerfile
+          command: make docker-postgres-member
       - run:
           name: Run integration tests
-          command: workspace/integration.test -test.v
+          command: workspace/bin/pgcm-acceptance
 
 workflows:
   version: 2
