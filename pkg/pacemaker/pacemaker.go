@@ -24,7 +24,6 @@ type Pacemaker struct {
 	executor
 }
 
-//go:generate counterfeiter . executor
 type executor interface {
 	CombinedOutput(context.Context, string, ...string) ([]byte, error)
 }
@@ -35,8 +34,12 @@ func (e systemExecutor) CombinedOutput(ctx context.Context, name string, args ..
 	return exec.CommandContext(ctx, name, args...).CombinedOutput()
 }
 
-func NewPacemaker() *Pacemaker {
-	return &Pacemaker{systemExecutor{}}
+func NewPacemaker(exec executor) *Pacemaker {
+	if exec == nil {
+		exec = systemExecutor{}
+	}
+
+	return &Pacemaker{exec}
 }
 
 type NoQuorumError struct{}
@@ -77,7 +80,7 @@ func (p Pacemaker) Get(ctx context.Context, xpaths ...string) ([]*etree.Element,
 type InvalidNodeIDError string
 
 func (e InvalidNodeIDError) Error() string {
-	return fmt.Sprintf("invalid nodeID, must be single integer: '%s'", e)
+	return fmt.Sprintf("invalid nodeID, must be single integer: '%s'", string(e))
 }
 
 // ResolveAddress will find the IP address for a given node ID. Node IDs are numeric, but
