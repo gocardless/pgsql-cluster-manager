@@ -46,6 +46,7 @@ var _ = Describe("PgBouncer", func() {
 
 	AfterEach(func() {
 		cleanup()
+		cancel()
 	})
 
 	readlogs := func() string {

@@ -20,7 +20,10 @@ func TestSuite(t *testing.T) {
 	// All tests in this suite require access to an etcd cluster. Boot one that we can use
 	// for everything, and rely on RandomKey() to generate unique keys.
 	client, cleanup, etcdErr = StartEtcd()
-	Expect(etcdErr).NotTo(HaveOccurred())
+	if etcdErr != nil {
+		t.Fail()
+	}
+
 	defer cleanup()
 
 	RunSpecs(t, "pkg/cmd/integration")

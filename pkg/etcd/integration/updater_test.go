@@ -25,6 +25,10 @@ var _ = Describe("CompareAndUpdate", func() {
 		key = RandomKey()
 	})
 
+	AfterEach(func() {
+		cancel()
+	})
+
 	compareAndUpdate := func(value string) error {
 		return etcd.CompareAndUpdate(ctx, client, key, value)
 	}

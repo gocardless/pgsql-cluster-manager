@@ -23,6 +23,9 @@ jobs:
     steps:
       - checkout
       - run:
+          name: Start Postgres
+          command: pg_ctlcluster 9.4 main start
+      - run:
           name: Run unit tests
           command: make test
 
