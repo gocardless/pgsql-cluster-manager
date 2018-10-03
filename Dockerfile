@@ -37,7 +37,12 @@ RUN set -x \
     && sudo mv -v /tmp/etcd/etcd /tmp/etcd/etcdctl /usr/bin/ \
     && rm -rfv /tmp/etcd-linux-amd64.tar.gz /tmp/etcd
 
+# etcd tries reading this environment variable when booting, and an invalid
+# format will cause etcd to fail when booting. Unset the variable to avoid this
+# terrible design decision.
+ENV ETCD_VERSION=
+
 ENV GO_VERSION=1.11
 RUN set -x \
     && mkdir -p /go \
-    && curl -L https://dl.google.com/go/go${GO_VERSION}.linux-amd64.tar.gz | tar xvzf - -C /go --strip-components=1
+    && curl -L https://dl.google.com/go/go${GO_VERSION}.linux-amd64.tar.gz | tar xzf - -C /go --strip-components=1
