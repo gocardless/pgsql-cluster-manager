@@ -12,10 +12,10 @@ generate:
 
 # Specific linux build target, making it easy to work with the docker acceptance
 # tests on OSX
-bin/%.linux_amd64: generate
+bin/%.linux_amd64:
 	GOOS=linux GOARCH=amd64 $(BUILD_COMMAND) -o $@ cmd/$*/$*.go
 
-bin/%: generate
+bin/%:
 	$(BUILD_COMMAND) -o $@ cmd/$*/$*.go
 
 test:
