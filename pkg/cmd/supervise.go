@@ -30,11 +30,11 @@ func NewSuperviseCommand(ctx context.Context) *cobra.Command {
 			supervise := &SuperviseCommand{
 				client:      mustEtcdClient(),
 				pgBouncer:   mustPgBouncer(),
-				crm:         pacemaker.NewPacemaker(),
+				crm:         pacemaker.NewPacemaker(nil),
 				bindAddress: viper.GetString("bind-address"),
 				StreamOptions: pacemaker.StreamOptions{
 					Ctx:       ctx,
-					Attribute: "uname",
+					Attribute: "id",
 					XPaths: []pacemaker.AliasedXPath{
 						pacemaker.AliasXPath(
 							viper.GetString("etcd-postgres-master-key"),
@@ -93,8 +93,22 @@ func (c *SuperviseCommand) Run(ctx context.Context) error {
 				return streams.RetryFold(
 					logger, kvs, c.RetryFoldOptions,
 					func(ctx context.Context, kv *mvccpb.KeyValue) error {
-						logger.Log("event", "node.change", "hostKey", string(kv.Key), "uname", string(kv.Value))
-						return etcd.CompareAndUpdate(ctx, c.client, string(kv.Key), string(kv.Value))
+						hostKey, nodeID := string(kv.Key), string(kv.Value)
+
+						logger := kitlog.With(logger, "hostKey", hostKey, "nodeID", nodeID)
+						logger.Log("event", "node.change")
+
+						// We get updates for the node ID, the numeric value that represents a
+						// corosync member node. We first need to resolve this into an IP address,
+						// then push it to etcd.
+						addr, err := c.crm.ResolveAddress(ctx, nodeID)
+						if err != nil {
+							logger.Log("event", "node.resolve.error", "error", err)
+							return err
+						}
+
+						logger.Log("event", "etcd.update", "addr", addr)
+						return etcd.CompareAndUpdate(ctx, c.client, hostKey, addr)
 					},
 				)
 			},

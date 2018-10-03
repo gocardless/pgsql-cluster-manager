@@ -69,8 +69,12 @@ func NewPgcmCommand(ctx context.Context) *cobra.Command {
 		Use:           "pgcm",
 		SilenceUsage:  true,
 		SilenceErrors: true,
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			return pgcm.loadConfig()
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) (err error) {
+			if err = pgcm.loadConfig(); err != nil {
+				logger.Log("event", "config_file.error", "error", err)
+			}
+
+			return
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return errors.New("no command given")
@@ -111,18 +115,20 @@ func (c *pgcmCommand) loadConfig() error {
 	logger := kitlog.With(logger, "config_file", c.ConfigFile)
 	logger.Log("event", "config_file.loading")
 	content, err := ioutil.ReadFile(c.ConfigFile)
-
-	if err == nil {
-		configHash.Set(computeConfigHash(content))
-		err = viper.ReadConfig(bytes.NewReader(content))
-		if err == nil {
-			logger.Log("event", "config_file.loaded", "hash", configHash)
-			return nil
-		}
+	if err != nil {
+		return err
 	}
 
-	logger.Log("event", "config_file.error", "error", err)
-	return errors.Wrap(err, "failed to load config file")
+	hash := computeConfigHash(content)
+	configHash.Set(hash)
+
+	viper.SetConfigType("toml")
+	if err = viper.ReadConfig(bytes.NewReader(content)); err != nil {
+		return err
+	}
+
+	logger.Log("event", "config_file.loaded", "hash", hash)
+	return nil
 }
 
 func handleQuitSignal(handler func()) func() {
