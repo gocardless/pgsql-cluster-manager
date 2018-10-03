@@ -39,7 +39,9 @@ func NewStream(logger kitlog.Logger, client *clientv3.Client, opt StreamOptions)
 		logger.Log("event", "watch.start")
 		for resp := range client.Watch(opt.Ctx, "/", clientv3.WithPrefix()) {
 			for _, event := range resp.Events {
-				out <- event.Kv
+				if includes(opt.Keys, string(event.Kv.Key)) {
+					out <- event.Kv
+				}
 			}
 		}
 
@@ -98,4 +100,14 @@ func NewStream(logger kitlog.Logger, client *clientv3.Client, opt StreamOptions)
 	}()
 
 	return out, done
+}
+
+func includes(set []string, elem string) bool {
+	for _, candidate := range set {
+		if candidate == elem {
+			return true
+		}
+	}
+
+	return false
 }
