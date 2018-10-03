@@ -3,7 +3,7 @@ VERSION := $(shell git rev-parse --short HEAD)-dev
 BUILD_COMMAND := go build -ldflags "-X github.com/gocardless/pgsql-cluster-manager/pkg/cmd.Version=$(VERSION)"
 
 # .PHONY: build build-integration generate test clean postgres-member-docker publish-dockerfile publish-circleci-dockerfile
-.PHONY: all generate clean $(PROG)
+.PHONY: all generate clean
 
 all: $(PROG)
 
