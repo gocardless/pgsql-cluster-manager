@@ -1,38 +1,46 @@
-PROG=pgcm
-SRC=cmd/pgcm/pgcm.go
-VERSION=$(shell git rev-parse --short HEAD)-dev
-BUILD_COMMAND=go build -ldflags "-X github.com/gocardless/pgsql-cluster-manager/pkg/cmd.Version=$(VERSION)"
+PROG=bin/pgcm bin/pgcm-acceptance
+VERSION := $(shell git rev-parse --short HEAD)-dev
+BUILD_COMMAND := go build -ldflags "-X github.com/gocardless/pgsql-cluster-manager/pkg/cmd.Version=$(VERSION)"
 
-.PHONY: build build-integration test clean build-postgres-member-dockerfile publish-dockerfile publish-circleci-dockerfile
+# .PHONY: build build-integration generate test clean postgres-member-docker publish-dockerfile publish-circleci-dockerfile
+.PHONY: all generate clean $(PROG)
 
-build:
+all: $(PROG)
+
+generate:
 	go generate ./...
-	$(BUILD_COMMAND) -o $(PROG) $(SRC)
 
-build-linux:
-	GOOS=linux GOARCH=amd64 $(BUILD_COMMAND) -o $(PROG).linux_amd64 $(SRC)
+# Specific linux build target, making it easy to work with the docker acceptance
+# tests on OSX
+bin/%.linux_amd64: generate
+	GOOS=linux GOARCH=amd64 $(BUILD_COMMAND) -o $@ cmd/$*/$*.go
 
-build-integration:
-	go test -tags integration -c github.com/gocardless/pgsql-cluster-manager/pkg/integration
+bin/%: generate
+	$(BUILD_COMMAND) -o $@ cmd/$*/$*.go
 
 test:
-	go test ./...
+	go test ./... -v
 
-export PGSQL_WORKSPACE=$(shell pwd)
-test-integration: build-postgres-member-dockerfile
-	[ -f $(PROG).linux_amd64 ] || (echo "Requires linux binary! Run `make build-linux` to build it" && exit 255)
-	go test -tags integration -v github.com/gocardless/pgsql-cluster-manager/pkg/integration
+test-integration: postgres-member-docker bin/pgcm-acceptance bin/pgcm.linux_amd64
+	bin/pgcm-acceptance --workspace $$(pwd)
 
 clean:
-	rm -rvf dist $(PROG) $(PROG).linux_amd64 *.test
+	rm -rvf dist $(PROG) $(PROG:%=%.linux_amd64)
 
-build-postgres-member-dockerfile:
+docker-base: Dockerfile
+	docker build -t gocardless/pgsql-cluster-manager-base .
+
+docker-postgres-member: docker/postgres-member/Dockerfile
 	docker build -t gocardless/postgres-member docker/postgres-member
 
-publish-dockerfile:
-	docker build -t gocardless/pgsql-cluster-manager-base . \
-		&& docker push gocardless/pgsql-cluster-manager-base
+docker-circleci: .circleci/Dockerfile
+	docker build -t gocardless/pgsql-cluster-manager-circleci .circleci
 
-publish-circleci-dockerfile:
-	docker build -t gocardless/pgsql-cluster-manager-circleci .circleci \
-		&& docker push gocardless/pgsql-cluster-manager-circleci
+publish-base: docker-base
+	docker push gocardless/pgsql-cluster-manager-base
+
+publish-postgres-member: docker-postgres-member
+	docker push gocardless/postgres-member
+
+publish-circleci: docker-circleci
+	docker push gocardless/pgsql-cluster-manager-circleci

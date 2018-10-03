@@ -6,7 +6,7 @@
 etcd-dial-timeout = "3s"
 
 # gRPC etcd endpoints
-etcd-endpoints = ["http://pg01:2379", "http://pg02.2379", "http://pg03:2379"]
+etcd-endpoints = ["http://pg01:2379", "http://pg02:2379", "http://pg03:2379"]
 
 # Time after which client pings server to check transport
 etcd-keep-alive-time = "30s"
@@ -41,6 +41,12 @@ pause-expiry = "25s"
 # Timeout for all nodes to pause PgBouncer
 pause-timeout = "5s"
 
+# timeout for etcd get operation
+etcd-get-timeout = "5s"
+
+# poll etcd on this interval
+etcd-stream-poll-interval = "1m0s"
+
 # Path to PgBouncer config file
 pgbouncer-config-file = "/etc/pgbouncer/pgbouncer.ini"
 
@@ -56,6 +62,9 @@ pgbouncer-password = ""
 # Port that PgBouncer is listening on
 pgbouncer-port = "6432"
 
+# retry failed PgBouncer operations at this interval
+pgbouncer-retry-interval = "5s"
+
 # Directory in which the unix socket resides
 pgbouncer-socket-dir = "/var/run/postgresql"
 
@@ -65,8 +74,17 @@ pgbouncer-timeout = "5s"
 # Admin user of PgBouncer
 pgbouncer-user = "pgbouncer"
 
-# XPath selector into cibadmin that finds current master
-postgres-master-crm-xpath = "//node/instance_attributes/nvpair[@value='LATEST']/../.."
-
 # Bind API to this address
 bind-address = ":8080"
+
+# Interval to retry etcd update of host key
+host-key-update-retry-interval = "1s"
+
+# Timeout for cib query operation
+pacemaker-get-timeout = "500ms"
+
+# Interval to poll pacemaker for state changes
+pacemaker-poll-interval = "1s"
+
+# XPath selector into cibadmin that finds current master
+postgres-master-crm-xpath = "//node/instance_attributes/nvpair[@value='LATEST']/../.."

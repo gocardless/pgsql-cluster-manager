@@ -183,7 +183,7 @@ function start_pgbouncer() {
 
 function start_cluster_manager() {
   log "Installing pgsql-cluster-manager"
-  cp -v /pgsql-cluster-manager/pgcm.linux_amd64 /usr/local/bin/pgcm
+  cp -v /pgsql-cluster-manager/bin/pgcm.linux_amd64 /usr/local/bin/pgcm
   cat <<EOF > /usr/local/bin/pgsql-cluster-manager.sh
 #!/bin/bash
 
