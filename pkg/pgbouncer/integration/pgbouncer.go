@@ -15,7 +15,7 @@ import (
 )
 
 // StartPgBouncer spins up a new PgBouncer instance in a temporary directory.
-func StartPgBouncer(database, user, port string) (bouncer *pgbouncer.PgBouncer, cleanup func(), err error) {
+func StartPgBouncer(database, user, port string) (bouncer *pgbouncer.PgBouncer, cleanup func()) {
 	var proc *exec.Cmd
 	var workspace string
 
@@ -26,33 +26,29 @@ func StartPgBouncer(database, user, port string) (bouncer *pgbouncer.PgBouncer, 
 		os.RemoveAll(workspace)
 	}
 
-	workspace, err = ioutil.TempDir("", "pgbouncer")
-	if err != nil {
-		return
-	}
+	workspace, err := ioutil.TempDir("", "pgbouncer")
+	Expect(err).NotTo(HaveOccurred(), "could not create PgBouncer workspace")
 
 	pgbouncerBinary, err := exec.LookPath("pgbouncer")
-	if err != nil {
-		return
-	}
+	Expect(err).NotTo(HaveOccurred(), "could not find pgbouncer binary")
 
 	configFile := filepath.Join(workspace, "pgbouncer.ini")
 	configFileTemplate := filepath.Join(workspace, "pgbouncer.ini.template")
 	authFile := filepath.Join(workspace, "users.txt")
 
 	// We need to allow the pgbouncer user for our tests
-	err = ioutil.WriteFile(
-		authFile,
-		[]byte(fmt.Sprintf(
-			"\"postgres\" \"trusted\"\n\"pgbouncer\" \"trusted\"\n\"%s\" \"trusted\"\n",
-			user,
-		)),
-		0644,
+	Expect(
+		ioutil.WriteFile(
+			authFile,
+			[]byte(fmt.Sprintf(
+				"\"postgres\" \"trusted\"\n\"pgbouncer\" \"trusted\"\n\"%s\" \"trusted\"\n",
+				user,
+			)),
+			0644,
+		),
+	).To(
+		Succeed(), "failed to write PgBouncer auth file",
 	)
-
-	if err != nil {
-		return
-	}
 
 	// Generate a config file template that will place unix socket in our temporary
 	// workspace
@@ -73,17 +69,14 @@ pool_mode = session
 ignore_startup_parameters = extra_float_digits`, database, port, workspace, workspace, workspace)),
 			0644,
 		)
-		if err != nil {
-			return
-		}
+
+		Expect(err).NotTo(HaveOccurred(), "failed to write config file")
 	}
 
 	proc = exec.Command(pgbouncerBinary, filepath.Join(workspace, "pgbouncer.ini"))
 	proc.Dir = workspace
 
-	if err = proc.Start(); err != nil {
-		return
-	}
+	Expect(proc.Start()).To(Succeed(), "failed to start PgBouncer")
 
 	bouncer = &pgbouncer.PgBouncer{
 		ConfigFile:         filepath.Join(workspace, "pgbouncer.ini"),
@@ -96,17 +89,13 @@ ignore_startup_parameters = extra_float_digits`, database, port, workspace, work
 		},
 	}
 
-	success := Eventually(
+	Eventually(
 		func() error { return bouncer.Connect(context.TODO()) },
 		10*time.Second,
 		100*time.Millisecond,
 	).Should(
-		Succeed(),
+		Succeed(), "timed out waiting for successful PgBouncer connection",
 	)
-
-	if !success {
-		err = fmt.Errorf("timed out waiting for successful PgBouncer connection")
-	}
 
 	return
 }

@@ -28,7 +28,6 @@ var _ = Describe("PgBouncer", func() {
 		cancel  func()
 		bouncer *pgbouncer.PgBouncer
 		cleanup func()
-		err     error
 
 		// We expect a Postgres database to be running for integration tests, and that
 		// environment variables are appropriately configured to permit access.
@@ -40,8 +39,7 @@ var _ = Describe("PgBouncer", func() {
 
 	BeforeEach(func() {
 		ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
-		bouncer, cleanup, err = StartPgBouncer(database, user, port)
-		Expect(err).NotTo(HaveOccurred())
+		bouncer, cleanup = StartPgBouncer(database, user, port)
 	})
 
 	AfterEach(func() {

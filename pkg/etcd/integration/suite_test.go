@@ -11,20 +11,19 @@ import (
 var (
 	client  *clientv3.Client
 	cleanup func()
-	etcdErr error
 )
+
+// All tests in this suite require access to an etcd cluster. Boot one that we can use for
+// everything, and rely on RandomKey() to generate unique keys.
+var _ = BeforeSuite(func() {
+	client, cleanup = StartEtcd()
+})
+
+var _ = AfterSuite(func() {
+	cleanup()
+})
 
 func TestSuite(t *testing.T) {
 	RegisterFailHandler(Fail)
-
-	// All tests in this suite require access to an etcd cluster. Boot one that we can use
-	// for everything, and rely on RandomKey() to generate unique keys.
-	client, cleanup, etcdErr = StartEtcd()
-	if etcdErr != nil {
-		t.Fail()
-	}
-
-	defer cleanup()
-
 	RunSpecs(t, "pkg/cmd/integration")
 }

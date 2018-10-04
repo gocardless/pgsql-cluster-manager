@@ -30,7 +30,7 @@ func RandomKey() string {
 }
 
 // StartEtcd spins up a single-node etcd cluster in a temporary directory
-func StartEtcd() (client *clientv3.Client, cleanup func(), err error) {
+func StartEtcd() (client *clientv3.Client, cleanup func()) {
 	var proc *exec.Cmd
 	var workspace string
 
@@ -41,20 +41,14 @@ func StartEtcd() (client *clientv3.Client, cleanup func(), err error) {
 		os.RemoveAll(workspace)
 	}
 
-	workspace, err = ioutil.TempDir("", "etcd")
-	if err != nil {
-		return
-	}
+	workspace, err := ioutil.TempDir("", "etcd")
+	Expect(err).NotTo(HaveOccurred(), "could not create etcd workspace")
 
 	endpointAddress, err := nextAvailableAddress()
-	if err != nil {
-		return
-	}
+	Expect(err).NotTo(HaveOccurred(), "could not get available port")
 
 	peerAddress, err := nextAvailableAddress()
-	if err != nil {
-		return
-	}
+	Expect(err).NotTo(HaveOccurred(), "could not get available port")
 
 	etcd := exec.Command(
 		"etcd",
@@ -68,26 +62,19 @@ func StartEtcd() (client *clientv3.Client, cleanup func(), err error) {
 
 	etcd.Dir = workspace
 
-	if err = etcd.Start(); err != nil {
-		return
-	}
+	Expect(etcd.Start()).To(Succeed(), "could not start etcd")
 
 	cfg := clientv3.Config{
 		Endpoints:   []string{endpointAddress},
 		DialTimeout: 1 * time.Second,
 	}
 
-	success := Eventually(
+	Eventually(
 		func() error { client, err = clientv3.New(cfg); return err },
 		10*time.Second,
-		100*time.Millisecond,
 	).Should(
-		Succeed(),
+		Succeed(), "timed out waiting for etcd to connect",
 	)
-
-	if !success {
-		err = errors.Wrap(err, "timed out waiting for etcd to connect")
-	}
 
 	return
 }

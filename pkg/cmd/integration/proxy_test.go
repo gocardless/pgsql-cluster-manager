@@ -23,13 +23,11 @@ var _ = Describe("$ pgcm proxy", func() {
 		proxy       *cmd.ProxyOptions
 		bouncer     *pgbouncer.PgBouncer
 		cleanup     func()
-		err         error
 	)
 
 	BeforeEach(func() {
 		ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
-		bouncer, cleanup, err = StartPgBouncer("postgres", "postgres", "5432")
-		Expect(err).NotTo(HaveOccurred())
+		bouncer, cleanup = StartPgBouncer("postgres", "postgres", "5432")
 
 		// Use a random key in etcd to permit parallel test runs
 		etcdHostKey = RandomKey()
