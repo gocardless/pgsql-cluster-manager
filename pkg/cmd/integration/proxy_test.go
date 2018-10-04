@@ -64,7 +64,7 @@ var _ = Describe("$ pgcm proxy", func() {
 	Context("When etcd key exists", func() {
 		It("Configures PgBouncer host in response to changes", func() {
 			put(etcdHostKey, "127.0.0.123")
-			go proxy.Run(ctx, client, bouncer)
+			go proxy.Run(ctx, logger, client, bouncer)
 
 			Eventually(showDatabases).Should(
 				ContainElement(

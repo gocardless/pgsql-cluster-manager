@@ -51,7 +51,7 @@ func NewSuperviseCommand(ctx context.Context) *cobra.Command {
 				},
 			}
 
-			return supervise.Run(ctx)
+			return supervise.Run(ctx, logger)
 		},
 	}
 
@@ -75,7 +75,7 @@ type SuperviseCommand struct {
 	streams.RetryFoldOptions
 }
 
-func (c *SuperviseCommand) Run(ctx context.Context) error {
+func (c *SuperviseCommand) Run(ctx context.Context, logger kitlog.Logger) error {
 	logger = kitlog.With(logger, "role", "supervise")
 
 	ctx, cancel := context.WithCancel(ctx)

@@ -15,7 +15,7 @@ var _ = Describe("Stream filters", func() {
 	Describe("DedupeFilter", func() {
 		var (
 			pipe = func(in chan *mvccpb.KeyValue) <-chan *mvccpb.KeyValue {
-				return streams.DedupeFilter(kitlog.NewNopLogger(), in)
+				return streams.DedupeFilter(kitlog.NewLogfmtLogger(GinkgoWriter), in)
 			}
 		)
 
@@ -55,7 +55,7 @@ var _ = Describe("Stream filters", func() {
 	Describe("RevisionFilter", func() {
 		var (
 			pipe = func(in chan *mvccpb.KeyValue) <-chan *mvccpb.KeyValue {
-				return streams.RevisionFilter(kitlog.NewNopLogger(), in)
+				return streams.RevisionFilter(kitlog.NewLogfmtLogger(GinkgoWriter), in)
 			}
 		)
 

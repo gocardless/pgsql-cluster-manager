@@ -56,7 +56,7 @@ var _ = Describe("NewStream", func() {
 
 	newStream := func() <-chan *mvccpb.KeyValue {
 		out, _ := NewStream(
-			kitlog.NewNopLogger(),
+			kitlog.NewLogfmtLogger(GinkgoWriter),
 			crm,
 			StreamOptions{
 				Ctx:       ctx,

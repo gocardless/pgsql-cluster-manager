@@ -8,6 +8,7 @@ import (
 
 	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/clientv3/concurrency"
+	kitlog "github.com/go-kit/kit/log"
 	"github.com/gocardless/pgsql-cluster-manager/pkg/failover"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -64,7 +65,7 @@ func NewFailoverCommand(ctx context.Context) *cobra.Command {
 				pacemakerTimeout:   viper.GetDuration("pacemaker-timeout"),
 			}
 
-			return failover.Run(ctx)
+			return failover.Run(ctx, logger)
 		},
 	}
 
@@ -85,7 +86,7 @@ type failoverCommand struct {
 	pacemakerTimeout   time.Duration
 }
 
-func (f *failoverCommand) Run(ctx context.Context) error {
+func (f *failoverCommand) Run(ctx context.Context, logger kitlog.Logger) error {
 	session, err := concurrency.NewSession(f.client)
 	if err != nil {
 		return err

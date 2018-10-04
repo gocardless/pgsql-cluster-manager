@@ -27,9 +27,13 @@ var _ = Describe("Stream", func() {
 		key = RandomKey()
 	})
 
+	AfterEach(func() {
+		cancel()
+	})
+
 	createStream := func() <-chan *mvccpb.KeyValue {
 		stream, _ := etcd.NewStream(
-			kitlog.NewNopLogger(),
+			kitlog.NewLogfmtLogger(GinkgoWriter),
 			client,
 			etcd.StreamOptions{
 				Ctx:          ctx,

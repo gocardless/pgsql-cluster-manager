@@ -6,6 +6,7 @@ import (
 
 	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/mvcc/mvccpb"
+	kitlog "github.com/go-kit/kit/log"
 	"github.com/gocardless/pgsql-cluster-manager/pkg/etcd"
 	"github.com/gocardless/pgsql-cluster-manager/pkg/pgbouncer"
 	"github.com/gocardless/pgsql-cluster-manager/pkg/streams"
@@ -36,7 +37,7 @@ func NewProxyCommand(ctx context.Context) *cobra.Command {
 				},
 			}
 
-			return proxy.Run(ctx, mustEtcdClient(), mustPgBouncer())
+			return proxy.Run(ctx, logger, mustEtcdClient(), mustPgBouncer())
 		},
 	}
 
@@ -56,7 +57,7 @@ type ProxyOptions struct {
 	streams.RetryFoldOptions
 }
 
-func (opt *ProxyOptions) Run(ctx context.Context, client *clientv3.Client, pgBouncer *pgbouncer.PgBouncer) (err error) {
+func (opt *ProxyOptions) Run(ctx context.Context, logger kitlog.Logger, client *clientv3.Client, pgBouncer *pgbouncer.PgBouncer) (err error) {
 	kvs, _ := etcd.NewStream(logger, client, opt.StreamOptions)
 
 	// etcd provides events out-of-order, and potentially duplicated. We need to use the
