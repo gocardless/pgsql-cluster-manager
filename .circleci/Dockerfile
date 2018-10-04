@@ -16,4 +16,4 @@ RUN set -x \
     && rm -v /tmp/goreleaser.deb
 
 # Configure Golang environment
-ENV GOROOT=/go PATH=$PATH:/go/bin
+ENV GOROOT=/go PATH=$PATH:/go/bin:/usr/sbin

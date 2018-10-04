@@ -34,12 +34,13 @@ var _ = Describe("PgBouncer", func() {
 		database = tryEnviron("PGDATABASE", "postgres")
 		host     = tryEnviron("PGHOST", "127.0.0.1")
 		user     = tryEnviron("PGUSER", "postgres")
+		password = tryEnviron("PGPASSWORD", "")
 		port     = tryEnviron("PGPORT", "5432")
 	)
 
 	BeforeEach(func() {
 		ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
-		bouncer, cleanup = StartPgBouncer(database, user, port)
+		bouncer, cleanup = StartPgBouncer(database, user, password, port)
 	})
 
 	AfterEach(func() {

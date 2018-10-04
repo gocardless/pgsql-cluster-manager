@@ -15,7 +15,7 @@ import (
 )
 
 // StartPgBouncer spins up a new PgBouncer instance in a temporary directory.
-func StartPgBouncer(database, user, port string) (bouncer *pgbouncer.PgBouncer, cleanup func()) {
+func StartPgBouncer(database, user, password, port string) (bouncer *pgbouncer.PgBouncer, cleanup func()) {
 	var proc *exec.Cmd
 	var workspace string
 
@@ -41,8 +41,8 @@ func StartPgBouncer(database, user, port string) (bouncer *pgbouncer.PgBouncer, 
 		ioutil.WriteFile(
 			authFile,
 			[]byte(fmt.Sprintf(
-				"\"postgres\" \"trusted\"\n\"pgbouncer\" \"trusted\"\n\"%s\" \"trusted\"\n",
-				user,
+				"\"postgres\" \"trusted\"\n\"pgbouncer\" \"trusted\"\n\"%s\" \"%s\"\n",
+				user, password,
 			)),
 			0644,
 		),

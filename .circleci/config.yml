@@ -24,10 +24,12 @@ jobs:
       - checkout
       - run:
           name: Start Postgres
-          command: pg_ctlcluster 9.4 main start
+          command: |
+            pg_ctlcluster 9.4 main start
+            sudo -u postgres psql -U postgres -c "alter user postgres with password 'password';"
       - run:
           name: Run unit tests
-          command: make test
+          command: PGPASSWORD="password" sudo --preserve-env -u postgres $(which go) test -count=1 -v ./...
 
   build:
     <<: *docker_build_image
@@ -57,7 +59,7 @@ jobs:
           command: make docker-postgres-member
       - run:
           name: Run integration tests
-          command: workspace/bin/pgcm-acceptance
+          command: workspace/bin/pgcm-acceptance --workspace workspace
 
 workflows:
   version: 2
