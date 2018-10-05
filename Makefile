@@ -21,7 +21,7 @@ bin/%:
 test:
 	go test ./... -v
 
-test-integration: postgres-member-docker bin/pgcm-acceptance bin/pgcm.linux_amd64
+test-integration: docker-postgres-member bin/pgcm-acceptance bin/pgcm.linux_amd64
 	bin/pgcm-acceptance --workspace $$(pwd)
 
 clean:
