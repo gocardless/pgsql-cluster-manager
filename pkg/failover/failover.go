@@ -265,39 +265,3 @@ func (f *Failover) getClient() (string, FailoverClient) {
 
 	return "", nil
 }
-
-func Pipeline(steps ...*pStep) func(context.Context, context.Context) error {
-	return func(ctx context.Context, deferCtx context.Context) error {
-		for _, step := range steps {
-			// Defer first, ensuring we always attempt our defer steps, even if the primary
-			// action fails.
-			for _, deferAction := range step.deferred {
-				defer deferAction(deferCtx)
-			}
-
-			if err := step.action(ctx); err != nil {
-				return err
-			}
-		}
-
-		return nil
-	}
-}
-
-type pStep struct {
-	action   func(context.Context) error
-	deferred []func(context.Context) error
-}
-
-func Step(action func(context.Context) error) *pStep {
-	return &pStep{action: action, deferred: []func(context.Context) error{}}
-}
-
-func (s *pStep) Defer(deferred ...func(context.Context) error) *pStep {
-	s.deferred = deferred
-	return s
-}
-
-func iso3339(t time.Time) string {
-	return t.Format("2006-01-02T15:04:05-0700")
-}

@@ -3,146 +3,18 @@ package failover
 import (
 	"context"
 	"errors"
-	"sync"
-	"testing"
+	"fmt"
 	"time"
-
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	"github.com/beevik/etree"
 	kitlog "github.com/go-kit/kit/log"
 	"github.com/gocardless/pgsql-cluster-manager/pkg/pacemaker"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+	. "github.com/onsi/gomega/gstruct"
 )
-
-type fakePauser struct{ mock.Mock }
-
-func (p fakePauser) Pause(ctx context.Context) error {
-	args := p.Called(ctx)
-	return args.Error(0)
-}
-
-func (p fakePauser) Resume(ctx context.Context) error {
-	args := p.Called(ctx)
-	return args.Error(0)
-}
-
-type fakeClock struct{ mock.Mock }
-
-func (c fakeClock) Now() time.Time {
-	args := c.Called()
-	return args.Get(0).(time.Time)
-}
-
-func (c fakeClock) Until(t time.Time) time.Duration {
-	args := c.Called(t)
-	return args.Get(0).(time.Duration)
-}
-
-type fakeCrm struct{ mock.Mock }
-
-func (c fakeCrm) Get(ctx context.Context, xpaths ...string) ([]*etree.Element, error) {
-	args := c.Called(ctx, xpaths)
-	return args.Get(0).([]*etree.Element), args.Error(1)
-}
-
-func (c fakeCrm) ResolveAddress(ctx context.Context, nodeID string) (string, error) {
-	args := c.Called(ctx, nodeID)
-	return args.String(0), args.Error(1)
-}
-
-func (c fakeCrm) Migrate(ctx context.Context, to string) error {
-	args := c.Called(ctx, to)
-	return args.Error(0)
-}
-
-func (c fakeCrm) Unmigrate(ctx context.Context) error {
-	args := c.Called(ctx)
-	return args.Error(0)
-}
-
-func TestServerPause(t *testing.T) {
-	testCases := []struct {
-		name          string
-		request       *PauseRequest
-		pauserError   error
-		waitForResume bool
-		responseError error
-	}{
-		{
-			name:          "when pause is successful",
-			request:       &PauseRequest{Timeout: 5, Expiry: 0},
-			pauserError:   nil,
-			waitForResume: false,
-			responseError: nil,
-		},
-		{
-			name:          "when pause is successful and expiry elapses, we resume",
-			request:       &PauseRequest{Timeout: 5, Expiry: 20},
-			pauserError:   nil,
-			waitForResume: true,
-			responseError: nil,
-		},
-		{
-			name:          "when pause fails",
-			request:       &PauseRequest{Timeout: 5, Expiry: 0},
-			pauserError:   errors.New("no stopping this"),
-			waitForResume: false,
-			responseError: status.Errorf(codes.Unknown, "unknown error: no stopping this"),
-		},
-		{
-			name:          "when pause times out",
-			request:       &PauseRequest{Timeout: 0, Expiry: 0},
-			pauserError:   errors.New("context expired"),
-			waitForResume: false,
-			responseError: status.Errorf(codes.DeadlineExceeded, "exceeded pause timeout"),
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			pauser := new(fakePauser)
-			pauser.On("Pause", mock.AnythingOfType("*context.timerCtx")).Return(tc.pauserError)
-			defer pauser.AssertExpectations(t)
-
-			clock := new(fakeClock)
-			clock.On("Now").Return(time.Now())
-
-			var wg sync.WaitGroup
-
-			if tc.waitForResume {
-				wg.Add(1) // we want to wait once a response is returned for the resume to happen
-
-				pauser.
-					On("Resume", mock.AnythingOfType("*context.emptyCtx")).Return(nil).
-					Run(func(args mock.Arguments) { wg.Done() })
-
-				// We would normally use the clock to defer a resume, but we want this to be
-				// instant in tests, so return zero to schedule immediately
-				clock.On("Until", mock.AnythingOfType("time.Time")).Return(time.Duration(0))
-			}
-
-			server := NewServer(kitlog.NewNopLogger(), pauser, nil)
-			server.clock = clock
-
-			_, err := server.Pause(context.Background(), tc.request)
-
-			assert.EqualValues(t, tc.responseError, err)
-
-			resumeCalled := make(chan struct{}, 1)
-			go func() { wg.Wait(); close(resumeCalled) }()
-
-			select {
-			case <-time.After(5 * time.Second):
-				assert.Fail(t, "timed out waiting for resume to be called")
-			case <-resumeCalled:
-				// we're good, proceed
-			}
-		})
-	}
-}
 
 func createElement(uname string) *etree.Element {
 	return &etree.Element{
@@ -153,104 +25,190 @@ func createElement(uname string) *etree.Element {
 	}
 }
 
-func TestMigrate(t *testing.T) {
-	testCases := []struct {
-		name                string
-		crmError            error
-		syncElement         *etree.Element
-		resolveAddressValue string
-		resolveAddressError error
-		shouldMigrate       bool
-		migrateTo           string // empty string means don't migrate
-		migrateAddress      string
-		migrateError        error
-		responseError       error
-	}{
-		{
-			name:                "when successfull",
-			crmError:            nil,
-			syncElement:         createElement("pg03"),
-			resolveAddressValue: "172.0.1.1",
-			resolveAddressError: nil,
-			shouldMigrate:       true,
-			migrateTo:           "pg03",
-			migrateAddress:      "172.0.1.1",
-			migrateError:        nil,
-			responseError:       nil,
-		},
-		{
-			name:                "when crm query fails",
-			crmError:            errors.New("oops"),
-			syncElement:         nil,
-			resolveAddressValue: "172.0.1.1",
-			resolveAddressError: nil,
-			shouldMigrate:       false,
-			migrateTo:           "",
-			migrateAddress:      "172.0.1.1",
-			migrateError:        nil,
-			responseError:       status.Errorf(codes.Unknown, "failed to query cib: oops"),
-		},
-		{
-			name:                "when no sync node is found",
-			crmError:            nil,
-			syncElement:         nil,
-			resolveAddressValue: "172.0.1.1",
-			resolveAddressError: nil,
-			shouldMigrate:       false,
-			migrateTo:           "",
-			migrateAddress:      "172.0.1.1",
-			migrateError:        nil,
-			responseError:       status.Errorf(codes.NotFound, "failed to find sync node"),
-		},
-		{
-			name:                "when unable to resolve sync node IP address",
-			crmError:            nil,
-			syncElement:         nil,
-			resolveAddressValue: "",
-			resolveAddressError: errors.New("corosync-cfgtool: not in $PATH"),
-			shouldMigrate:       false,
-			migrateTo:           "",
-			migrateAddress:      "",
-			migrateError:        nil,
-			responseError:       status.Errorf(codes.NotFound, "failed to find sync node"),
-		},
-		{
-			name:                "when crm migration fails",
-			crmError:            nil,
-			syncElement:         createElement("pg03"),
-			resolveAddressValue: "172.0.1.1",
-			resolveAddressError: nil,
-			shouldMigrate:       true,
-			migrateTo:           "pg03",
-			migrateAddress:      "172.0.1.1",
-			migrateError:        errors.New("cannot find crm in PATH"),
-			responseError: status.Errorf(
-				codes.Unknown, "'crm resource migrate pg03' failed: cannot find crm in PATH",
-			),
-		},
-	}
+var _ = Describe("Server", func() {
+	var (
+		ctx     = context.Background()
+		logger  kitlog.Logger
+		server  *Server
+		bouncer *fakePauser
+		crm     *fakeCrm
+		clock   *fakeClock
+	)
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
-			crm := new(fakeCrm)
+	BeforeEach(func() {
+		logger = kitlog.NewLogfmtLogger(GinkgoWriter)
+		bouncer = new(fakePauser)
+		crm = new(fakeCrm)
+		clock = new(fakeClock)
+
+		server = NewServer(logger, bouncer, crm)
+		server.clock = clock
+	})
+
+	Describe("Pause", func() {
+		subject := func(req *PauseRequest, pauseErr error) (*PauseResponse, error) {
+			bouncer.On("Pause", mock.AnythingOfType("*context.timerCtx")).Return(pauseErr)
+			clock.On("Now").Return(time.Now())
+
+			return server.Pause(ctx, req)
+		}
+
+		Context("When PgBouncer pauses successfully", func() {
+			It("Succeeds", func() {
+				_, err := subject(&PauseRequest{Timeout: 5, Expiry: 0}, nil)
+				Expect(err).NotTo(HaveOccurred())
+			})
+
+			Context("And expiry elapses", func() {
+				// We would normally use the clock to defer a resume, but we want to simulate the
+				// expiry being triggered, so we return zero to say "our time is up!" immediately.
+				BeforeEach(func() {
+					clock.On("Until", mock.AnythingOfType("time.Time")).Return(time.Duration(0))
+				})
+
+				Specify("We issue a resume", func() {
+					resumed := make(chan interface{}, 1)
+					bouncer.
+						On("Resume", mock.AnythingOfType("*context.emptyCtx")).Return(nil).
+						Run(func(args mock.Arguments) { resumed <- struct{}{} })
+
+					// Set expiry to be a non-zero value, as otherwise we shortcut the expiry logic
+					_, err := subject(&PauseRequest{Timeout: 5, Expiry: 1}, nil)
+
+					Expect(err).NotTo(HaveOccurred())
+					Eventually(resumed).Should(Receive(), "did not receive ack that resume occurred")
+				})
+			})
+		})
+
+		Context("When PgBouncer fails to pause", func() {
+			It("Fails", func() {
+				_, err := subject(&PauseRequest{Timeout: 5, Expiry: 0}, fmt.Errorf("nah"))
+				Expect(err).To(HaveOccurred(), "expected Pause to return error")
+			})
+		})
+
+		Context("When PgBouncer times out", func() {
+			It("Returns explanatory error", func() {
+				_, err := subject(&PauseRequest{Timeout: 0, Expiry: 0}, fmt.Errorf("context expired"))
+				Expect(err).To(MatchError("rpc error: code = DeadlineExceeded desc = exceeded pause timeout"))
+			})
+		})
+	})
+
+	Describe("Migrate", func() {
+		type lets struct {
+			crmSyncElement      *etree.Element
+			crmErr              error
+			resolveAddressValue string
+			resolveAddressErr   error
+			migrateTo           string
+			migrateErr          error
+		}
+
+		var (
+			let lets
+		)
+
+		BeforeEach(func() {
+			let = lets{}
+		})
+
+		subject := func() (*MigrateResponse, error) {
+			clock.On("Now").Return(time.Now())
 
 			crm.
 				On("Get", ctx, []string{pacemaker.SyncXPath}).
-				Return([]*etree.Element{tc.syncElement}, tc.crmError)
+				Return([]*etree.Element{let.crmSyncElement}, let.crmErr)
 
 			crm.
 				On("ResolveAddress", ctx, "1").
-				Return(tc.resolveAddressValue, tc.resolveAddressError)
+				Return(let.resolveAddressValue, let.resolveAddressErr)
 
 			crm.
-				On("Migrate", ctx, tc.migrateTo).
-				Return(tc.migrateError)
+				On("Migrate", ctx, let.migrateTo).
+				Return(let.migrateErr)
 
-			server := NewServer(kitlog.NewNopLogger(), nil, crm)
-			_, err := server.Migrate(ctx, nil)
+			return server.Migrate(ctx, &Empty{})
+		}
 
-			assert.EqualValues(t, tc.responseError, err)
+		subjectErr := func() error {
+			_, err := subject()
+			return err
+		}
+
+		Context("When migration succeeds", func() {
+			BeforeEach(func() {
+				let.crmSyncElement = createElement("pg03")
+				let.resolveAddressValue = "172.0.1.1"
+				let.migrateTo = "pg03"
+			})
+
+			It("Succeeds", func() {
+				Expect(subject()).To(
+					PointTo(
+						MatchFields(
+							IgnoreExtras,
+							Fields{
+								"MigratingTo": Equal("pg03"),
+								"Address":     Equal("172.0.1.1"),
+							},
+						),
+					),
+				)
+			})
 		})
-	}
-}
+
+		Context("When crm query fails", func() {
+			BeforeEach(func() {
+				let.crmErr = errors.New("oops")
+			})
+
+			It("Fails", func() {
+				Expect(subjectErr()).To(
+					MatchError("rpc error: code = Unknown desc = failed to query cib: oops"),
+				)
+			})
+		})
+
+		Context("When no sync node is found", func() {
+			BeforeEach(func() {
+				let.crmSyncElement = nil
+			})
+
+			It("Fails", func() {
+				Expect(subjectErr()).To(
+					MatchError("rpc error: code = NotFound desc = failed to find sync node"),
+				)
+			})
+		})
+
+		Context("When unable to resolve address", func() {
+			BeforeEach(func() {
+				let.crmSyncElement = createElement("pg03")
+				let.resolveAddressErr = errors.New("corosync-cfgtool: not in $PATH")
+			})
+
+			It("Fails", func() {
+				Expect(subjectErr()).To(
+					MatchError("rpc error: code = Unknown desc = failed to resolve sync host IP address: corosync-cfgtool: not in $PATH"),
+				)
+			})
+		})
+
+		Context("When crm migration fails", func() {
+			BeforeEach(func() {
+				let.crmSyncElement = createElement("pg03")
+				let.resolveAddressValue = "172.0.1.1"
+				let.migrateTo = "pg03"
+				let.migrateErr = errors.New("crm: not in $PATH")
+			})
+
+			It("Fails", func() {
+				Expect(subjectErr()).To(
+					MatchError("rpc error: code = Unknown desc = 'crm resource migrate pg03' failed: crm: not in $PATH"),
+				)
+			})
+		})
+	})
+})

@@ -125,7 +125,7 @@ func (c *SuperviseCommand) Run(ctx context.Context, logger kitlog.Logger) error 
 		}
 
 		server := failover.NewServer(logger, c.pgBouncer, c.crm)
-		grpcServer := grpc.NewServer()
+		grpcServer := grpc.NewServer(grpc.UnaryInterceptor(server.LoggingInterceptor))
 		failover.RegisterFailoverServer(grpcServer, server)
 
 		g.Add(

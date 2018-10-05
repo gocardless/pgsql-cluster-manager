@@ -2,7 +2,6 @@ package failover
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/beevik/etree"
@@ -10,15 +9,18 @@ import (
 	"github.com/gocardless/pgsql-cluster-manager/pkg/pacemaker"
 	"github.com/golang/protobuf/ptypes"
 	tspb "github.com/golang/protobuf/ptypes/timestamp"
+	uuid "github.com/satori/go.uuid"
+	grpc "google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
+// Server implements the hooks required to provide the failover interface
 type Server struct {
-	logger    kitlog.Logger
-	pgBouncer pgBouncerPauser
-	crm       crm
-	clock     clock
+	logger  kitlog.Logger
+	bouncer pauser
+	crm     crm
+	clock   clock
 }
 
 // This allows stubbing of time in tests, but would normally delegate to the time package
@@ -37,7 +39,7 @@ func (c realClock) Until(t time.Time) time.Duration {
 	return time.Until(t)
 }
 
-type pgBouncerPauser interface {
+type pauser interface {
 	Pause(context.Context) error
 	Resume(context.Context) error
 }
@@ -49,13 +51,34 @@ type crm interface {
 	Unmigrate(context.Context) error
 }
 
-func NewServer(logger kitlog.Logger, pgBouncer pgBouncerPauser, crm crm) *Server {
+func iso3339(t time.Time) string {
+	return t.Format("2006-01-02T15:04:05-0700")
+}
+
+func NewServer(logger kitlog.Logger, bouncer pauser, crm crm) *Server {
 	return &Server{
-		logger:    logger,
-		pgBouncer: pgBouncer,
-		crm:       crm,
-		clock:     realClock{},
+		logger:  logger,
+		bouncer: bouncer,
+		crm:     crm,
+		clock:   realClock{},
 	}
+}
+
+// LoggingInterceptor returns a UnaryServerInterceptor that logs all incoming
+// requests, both at the start and at the end of their execution.
+func (s *Server) LoggingInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
+	logger := kitlog.With(s.logger, "method", info.FullMethod, "trace", uuid.NewV4().String())
+	logger.Log("msg", "handling request")
+
+	defer func(begin time.Time) {
+		if err != nil {
+			logger = kitlog.With(logger, "error", err.Error())
+		}
+
+		logger.Log("duration", time.Since(begin).Seconds())
+	}(time.Now())
+
+	return handler(ctx, req)
 }
 
 func (s *Server) HealthCheck(ctx context.Context, _ *Empty) (*HealthCheckResponse, error) {
@@ -64,7 +87,7 @@ func (s *Server) HealthCheck(ctx context.Context, _ *Empty) (*HealthCheckRespons
 	}, nil
 }
 
-func (s *Server) Pause(ctx context.Context, req *PauseRequest) (*PauseResponse, error) {
+func (s *Server) Pause(ctx context.Context, req *PauseRequest) (resp *PauseResponse, err error) {
 	createdAt := s.clock.Now()
 	timeoutAt := createdAt.Add(time.Duration(req.Timeout) * time.Second)
 	expiresAt := createdAt.Add(time.Duration(req.Expiry) * time.Second)
@@ -72,14 +95,12 @@ func (s *Server) Pause(ctx context.Context, req *PauseRequest) (*PauseResponse, 
 	timeoutCtx, cancel := context.WithDeadline(ctx, timeoutAt)
 	defer cancel()
 
-	err := s.execute("pgbouncer.pause", func() error { return s.pgBouncer.Pause(timeoutCtx) })
-
-	if err != nil {
+	if err := s.bouncer.Pause(timeoutCtx); err != nil {
 		if timeoutCtx.Err() == nil {
-			return nil, status.Errorf(codes.Unknown, "unknown error: %s", err.Error())
-		} else {
-			return nil, status.Errorf(codes.DeadlineExceeded, "exceeded pause timeout")
+			return nil, status.Error(codes.Unknown, err.Error())
 		}
+
+		return nil, status.Errorf(codes.DeadlineExceeded, "exceeded pause timeout")
 	}
 
 	// We need to ensure we remove the pause at expiry seconds from the moment the request
@@ -87,10 +108,12 @@ func (s *Server) Pause(ctx context.Context, req *PauseRequest) (*PauseResponse, 
 	// goes wrong.
 	if req.Expiry > 0 {
 		go func() {
-			s.logger.Log("event", "pgbouncer.resume.schedule", "at", iso3339(expiresAt))
+			s.logger.Log("event", "pause", "msg", "scheduling pgbouncer resume", "at", iso3339(expiresAt))
 			time.Sleep(s.clock.Until(expiresAt))
 
-			s.execute("pgbouncer.resume", func() error { return s.pgBouncer.Resume(context.TODO()) })
+			if err := s.bouncer.Resume(context.TODO()); err != nil {
+				s.logger.Log("event", "pause", "error", err.Error(), "msg", "failed to resume pgbouncer")
+			}
 		}()
 	}
 
@@ -101,9 +124,8 @@ func (s *Server) Pause(ctx context.Context, req *PauseRequest) (*PauseResponse, 
 }
 
 func (s *Server) Resume(ctx context.Context, _ *Empty) (*ResumeResponse, error) {
-	err := s.execute("pgbouncer.resume", func() error { return s.pgBouncer.Resume(ctx) })
-	if err != nil {
-		return nil, status.Errorf(codes.Unknown, "unknown error: %s", err.Error())
+	if err := s.bouncer.Resume(ctx); err != nil {
+		return nil, status.Errorf(codes.Unknown, "failed to resume pgbouncer: %s", err.Error())
 	}
 
 	return &ResumeResponse{CreatedAt: s.TimestampProto(s.clock.Now())}, nil
@@ -112,13 +134,11 @@ func (s *Server) Resume(ctx context.Context, _ *Empty) (*ResumeResponse, error) 
 func (s *Server) Migrate(ctx context.Context, _ *Empty) (*MigrateResponse, error) {
 	nodes, err := s.crm.Get(ctx, pacemaker.SyncXPath)
 	if err != nil {
-		s.logger.Log("event", "cib.error", "error", err, "msg", "failed to query cib")
 		return nil, status.Errorf(codes.Unknown, "failed to query cib: %s", err.Error())
 	}
 
 	sync := nodes[0]
 	if sync == nil {
-		s.logger.Log("event", "cluster.sync.not_found")
 		return nil, status.Errorf(codes.NotFound, "failed to find sync node")
 	}
 
@@ -127,16 +147,12 @@ func (s *Server) Migrate(ctx context.Context, _ *Empty) (*MigrateResponse, error
 	syncAddress, err := s.crm.ResolveAddress(ctx, syncID)
 
 	if err != nil {
-		s.logger.Log("event", "cluster.sync.cannot_resolve", "error", err)
 		return nil, status.Errorf(
 			codes.Unknown, "failed to resolve sync host IP address: %s", err.Error(),
 		)
 	}
 
-	err = s.crm.Migrate(ctx, syncHost)
-
-	if err != nil {
-		s.logger.Log("event", "crm.migrate.error", "error", err)
+	if err := s.crm.Migrate(ctx, syncHost); err != nil {
 		return nil, status.Errorf(
 			codes.Unknown, "'crm resource migrate %s' failed: %s", syncHost, err.Error(),
 		)
@@ -155,17 +171,6 @@ func (s *Server) Unmigrate(ctx context.Context, _ *Empty) (*UnmigrateResponse, e
 	}
 
 	return &UnmigrateResponse{CreatedAt: s.TimestampProto(s.clock.Now())}, nil
-}
-
-func (s *Server) execute(event string, action func() error) error {
-	s.logger.Log("event", fmt.Sprintf("%s.execute", event))
-
-	if err := action(); err != nil {
-		s.logger.Log("event", fmt.Sprintf("%s.error", event), "error", err)
-		return err
-	}
-
-	return nil
 }
 
 func (s *Server) TimestampProto(t time.Time) *tspb.Timestamp {
