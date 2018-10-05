@@ -55,14 +55,17 @@ func NewFailoverCommand(ctx context.Context) *cobra.Command {
 		Long:  failoverLongDescription,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			failover := &failoverCommand{
-				client:             mustEtcdClient(),
-				endpoints:          viper.GetStringSlice("failover-api-endpoints"),
-				etcdHostKey:        viper.GetString("etcd-postgres-master-key"),
-				healthCheckTimeout: viper.GetDuration("health-check-timeout"),
-				lockTimeout:        viper.GetDuration("lock-timeout"),
-				pauseTimeout:       viper.GetDuration("pause-timeout"),
-				pauseExpiry:        viper.GetDuration("pause-expiry"),
-				pacemakerTimeout:   viper.GetDuration("pacemaker-timeout"),
+				client:    mustEtcdClient(),
+				endpoints: viper.GetStringSlice("failover-api-endpoints"),
+				opt: failover.FailoverOptions{
+					EtcdHostKey:        viper.GetString("etcd-postgres-master-key"),
+					HealthCheckTimeout: viper.GetDuration("health-check-timeout"),
+					LockTimeout:        viper.GetDuration("lock-timeout"),
+					PauseTimeout:       viper.GetDuration("pause-timeout"),
+					PauseExpiry:        viper.GetDuration("pause-expiry"),
+					ResumeTimeout:      viper.GetDuration("resume-timeout"),
+					PacemakerTimeout:   viper.GetDuration("pacemaker-timeout"),
+				},
 			}
 
 			return failover.Run(ctx, logger)
@@ -76,14 +79,9 @@ func NewFailoverCommand(ctx context.Context) *cobra.Command {
 }
 
 type failoverCommand struct {
-	client             *clientv3.Client
-	endpoints          []string
-	etcdHostKey        string
-	healthCheckTimeout time.Duration
-	lockTimeout        time.Duration
-	pauseTimeout       time.Duration
-	pauseExpiry        time.Duration
-	pacemakerTimeout   time.Duration
+	client    *clientv3.Client
+	endpoints []string
+	opt       failover.FailoverOptions
 }
 
 func (f *failoverCommand) Run(ctx context.Context, logger kitlog.Logger) error {
@@ -92,38 +90,29 @@ func (f *failoverCommand) Run(ctx context.Context, logger kitlog.Logger) error {
 		return err
 	}
 
-	locker := concurrency.NewMutex(session, f.etcdHostKey)
+	locker := concurrency.NewMutex(session, f.opt.EtcdHostKey)
 
-	clients := make([]failover.FailoverClient, len(f.endpoints))
-	for idx, endpoint := range f.endpoints {
+	clients := map[string]failover.FailoverClient{}
+	for _, endpoint := range f.endpoints {
 		logger.Log("event", "client.connecting", "endpoint", endpoint)
 		conn, err := grpc.Dial(endpoint, grpc.WithInsecure())
 		if err != nil {
 			return errors.Wrapf(err, "failed to connect to endpoint %s", endpoint)
 		}
 
-		clients[idx] = failover.NewFailoverClient(conn)
+		clients[endpoint] = failover.NewFailoverClient(conn)
 	}
 
-	process := &failover.Failover{
-		Logger:             logger,
-		Clients:            clients,
-		Locker:             locker,
-		Etcd:               f.client,
-		EtcdHostKey:        f.etcdHostKey,
-		HealthCheckTimeout: f.healthCheckTimeout,
-		LockTimeout:        f.lockTimeout,
-		PauseTimeout:       f.pauseTimeout,
-		PauseExpiry:        f.pauseExpiry,
-		PacemakerTimeout:   f.pacemakerTimeout,
-	}
+	// Once our initial context is finished, wait some time before cancelling our defer
+	// context.  This ensures in the event of an operator SIGQUIT that we attempt to run
+	// cleanup tasks before actually quitting.
+	deferCtx, cancel := context.WithCancel(context.Background())
+	go func() { ctx.Done(); time.Sleep(10 * time.Second); cancel() }()
+	defer cancel()
 
-	err = process.Run(ctx)
-
-	if err != nil {
-		logger.Log("event", "failover.error", "error", err,
-			"msg", "failed to run migration, PgBouncers have been resumed")
-	}
-
-	return err
+	return failover.NewFailover(
+		logger, f.client, clients, locker, f.opt,
+	).Run(
+		ctx, deferCtx,
+	)
 }

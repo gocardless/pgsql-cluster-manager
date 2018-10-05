@@ -77,5 +77,6 @@ func addFailoverFlags(flags *pflag.FlagSet) {
 	flags.Duration("lock-timeout", 5*time.Second, "Timeout to acquire exclusive failover lock in etcd")
 	flags.Duration("pause-timeout", 5*time.Second, "Timeout for all nodes to pause PgBouncer")
 	flags.Duration("pause-expiry", 25*time.Second, "Time after which PgBouncer will automatically lift pause")
+	flags.Duration("resume-timeout", 5*time.Second, "Timeout for PgBouncer resume operations")
 	flags.Duration("pacemaker-timeout", 20*time.Second, "Timeout for executing (not necessarily to completion) pacemaker commands")
 }

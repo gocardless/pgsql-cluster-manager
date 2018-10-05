@@ -19,11 +19,17 @@ type StreamOptions struct {
 	GetTimeout   time.Duration
 }
 
+// Thin interface around the etcd functions we require
+type etcdGetter interface {
+	Get(context.Context, string, ...clientv3.OpOption) (*clientv3.GetResponse, error)
+	Watch(context.Context, string, ...clientv3.OpOption) clientv3.WatchChan
+}
+
 // NewStream accepts an etcd client with which we watch for changes to our selected keys
 // and push them down the output channel. The advantages to using this interface over what
 // etcd already provides is the polling interval, which ensures on boot that we receive
 // the initial value, along with at polling intervals.
-func NewStream(logger kitlog.Logger, client *clientv3.Client, opt StreamOptions) (<-chan *mvccpb.KeyValue, <-chan struct{}) {
+func NewStream(logger kitlog.Logger, client etcdGetter, opt StreamOptions) (<-chan *mvccpb.KeyValue, <-chan struct{}) {
 	logger = kitlog.With(logger, "keys", strings.Join(opt.Keys, ","))
 	out, done := make(chan *mvccpb.KeyValue), make(chan struct{})
 
