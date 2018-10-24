@@ -13,8 +13,7 @@ RUN set -x \
     && curl -L "https://github.com/goreleaser/goreleaser/releases/download/${GORELEASER_VERSION}/goreleaser_Linux_x86_64.deb" --output /tmp/goreleaser.deb \
     && echo "${GORELEASER_SHA256} /tmp/goreleaser.deb" | sha256sum -c \
     && dpkg -i /tmp/goreleaser.deb \
-    && rm -v /tmp/goreleaser.deb \
-    && gem install fpm
+    && rm -v /tmp/goreleaser.deb
 
 # Run everything as circleci
 ENV GOPATH=/home/circleci/go PATH=$PATH:/home/circleci/go/bin
