@@ -27,7 +27,7 @@ brew:
   homepage: https://github.com/gocardless/pgsql-cluster-manager
   description: Orchestrator for Postgres clustering with corosync/pacemaker/etcd
 
-fpm:
+nfpm:
   vendor: GoCardless
   homepage: https://github.com/gocardless/pgsql-cluster-manager
   maintainer: GoCardless Engineering <engineering@gocardless.com>
