@@ -2,11 +2,6 @@
 version: 2
 
 references:
-  docker_login: &docker_login
-    run:
-      name: Login to GoCardless DockerHub
-      command: docker login -u $DOCKER_USER -p $DOCKER_PASS
-
   docker_build_image: &docker_build_image
     working_directory: /go/src/github.com/gocardless/pgsql-cluster-manager
     docker:
@@ -50,7 +45,6 @@ jobs:
       - checkout
       - attach_workspace:
           at: workspace
-      - *docker_login
       - run:
           name: Pull gocardless/pgsql-cluster-manager-base image
           command: docker pull gocardless/pgsql-cluster-manager-base:v1
