@@ -53,7 +53,7 @@ jobs:
       - *docker_login
       - run:
           name: Pull gocardless/pgsql-cluster-manager-base image
-          command: docker pull gocardless/pgsql-cluster-manager-base
+          command: docker pull gocardless/pgsql-cluster-manager-base:v1
       - run:
           name: Build postgres member image
           command: make docker-postgres-member
