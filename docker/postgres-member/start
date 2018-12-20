@@ -12,7 +12,7 @@ function run-container() {
     --privileged \
     --detach \
     --publish-all \
-    --volume "$(git rev-parse --show-toplevel):/pgsql-cluster-manager" \
+    --volume "$(git rev-parse --show-toplevel):/pgsql-cluster-manager:v1" \
     --volume "/var/run/docker.sock:/var/run/docker.sock" \
     gocardless/postgres-member \
     sh -c "while :; do sleep 1; done"

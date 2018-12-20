@@ -10,7 +10,7 @@ references:
   docker_build_image: &docker_build_image
     working_directory: /go/src/github.com/gocardless/pgsql-cluster-manager
     docker:
-      - image: gocardless/pgsql-cluster-manager-circleci:latest
+      - image: gocardless/pgsql-cluster-manager-circleci:v1
         auth:
           username: $DOCKER_USER
           password: $DOCKER_PASS
@@ -53,7 +53,7 @@ jobs:
       - *docker_login
       - run:
           name: Pull gocardless/pgsql-cluster-manager-base image
-          command: docker pull gocardless/pgsql-cluster-manager-base
+          command: docker pull gocardless/pgsql-cluster-manager-base:v1
       - run:
           name: Build postgres member image
           command: make docker-postgres-member
