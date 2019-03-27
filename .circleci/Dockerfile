@@ -6,7 +6,7 @@ RUN set -x \
     && curl "https://download.docker.com/linux/static/stable/x86_64/docker-17.06.2-ce.tgz" | tar xfvz - -C /tmp docker/docker \
     && mv /tmp/docker/docker /usr/bin/docker
 
-# We need goreleaser to build the go binaries, and fpm for debs
+# We need goreleaser to build the go binaries
 ENV GORELEASER_VERSION=v0.37.0 \
     GORELEASER_SHA256=2d9c73195b9036acb48c9633e0d284d7cda12f6e178522b87d3867e775289d23
 RUN set -x \
@@ -15,8 +15,5 @@ RUN set -x \
     && dpkg -i /tmp/goreleaser.deb \
     && rm -v /tmp/goreleaser.deb
 
-# Run everything as circleci
-ENV GOPATH=/home/circleci/go PATH=$PATH:/home/circleci/go/bin
-RUN groupadd -g 1100 circleci && useradd -u 1100 -m -d /home/circleci -g circleci circleci
-
-USER circleci
+# Configure Golang environment
+ENV GOROOT=/go PATH=$PATH:/go/bin:/usr/sbin

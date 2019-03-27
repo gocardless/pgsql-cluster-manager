@@ -1,5 +1,5 @@
 /dist
 *.test
 .bundle
-/pgsql-cluster-manager
-/pgsql-cluster-manager.linux_amd64
+/pgcm
+/pgcm.linux_amd64

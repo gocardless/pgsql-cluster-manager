@@ -1,4 +1,4 @@
-# Minimal release image containing just the pgsql-cluster-manager binary
+# Minimal release image containing just the pgcm binary
 FROM alpine:3.7
-COPY pgsql-cluster-manager /pgsql-cluster-manager
-CMD ["/pgsql-cluster-manager", "version"]
+COPY pgcm /bin/pgcm
+CMD ["/bin/pgcm", "version"]

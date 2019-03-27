@@ -1,15 +1,11 @@
+---
 version: 2
 
 references:
-  docker_login: &docker_login
-    run:
-      name: Login to GoCardless DockerHub
-      command: docker login -u $DOCKER_USER -p $DOCKER_PASS
-
   docker_build_image: &docker_build_image
-    working_directory: /home/circleci/go/src/github.com/gocardless/pgsql-cluster-manager
+    working_directory: /go/src/github.com/gocardless/pgsql-cluster-manager
     docker:
-      - image: gocardless/pgsql-cluster-manager-circleci:latest
+      - image: gocardless/pgsql-cluster-manager-circleci:v1
         auth:
           username: $DOCKER_USER
           password: $DOCKER_PASS
@@ -22,22 +18,24 @@ jobs:
     steps:
       - checkout
       - run:
+          name: Start Postgres
+          command: |
+            pg_ctlcluster 9.4 main start
+            sudo -u postgres psql -U postgres -c "alter user postgres with password 'password';"
+      - run:
           name: Run unit tests
-          command: make test
+          command: PGPASSWORD="password" sudo --preserve-env -u postgres $(which go) test -count=1 -v ./...
 
   build:
     <<: *docker_build_image
     steps:
       - checkout
       - run:
-          name: Build linux test binary
-          command: make build-linux
-      - run:
-          name: Build integration test binary
-          command: make build-integration
+          name: Build test binaries
+          command: make bin/pgcm.linux_amd64 bin/pgcm-acceptance
       - persist_to_workspace:
-          root: /home/circleci/go/src/github.com/gocardless/pgsql-cluster-manager
-          paths: ['pgsql-cluster-manager.linux_amd64', 'integration.test']
+          root: /go/src/github.com/gocardless/pgsql-cluster-manager
+          paths: ['bin/pgcm.linux_amd64', 'bin/pgcm-acceptance']
 
   integration:
     machine: true
@@ -47,16 +45,15 @@ jobs:
       - checkout
       - attach_workspace:
           at: workspace
-      - *docker_login
       - run:
           name: Pull gocardless/pgsql-cluster-manager-base image
-          command: docker pull gocardless/pgsql-cluster-manager-base
+          command: docker pull gocardless/pgsql-cluster-manager-base:v1
       - run:
           name: Build postgres member image
-          command: make build-postgres-member-dockerfile
+          command: make docker-postgres-member
       - run:
           name: Run integration tests
-          command: workspace/integration.test -test.v
+          command: workspace/bin/pgcm-acceptance --workspace workspace
 
 workflows:
   version: 2

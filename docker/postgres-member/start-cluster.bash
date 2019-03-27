@@ -177,28 +177,24 @@ function start_etcd() {
 }
 
 function start_pgbouncer() {
-  log "Starting PGBouncer"
+  log "Starting PgBouncer"
   service pgbouncer start
 }
 
 function start_cluster_manager() {
   log "Installing pgsql-cluster-manager"
-  cp -v /pgsql-cluster-manager/pgsql-cluster-manager.linux_amd64 /usr/local/bin/pgsql-cluster-manager
+  cp -v /pgsql-cluster-manager/bin/pgcm.linux_amd64 /usr/local/bin/pgcm
   cat <<EOF > /usr/local/bin/pgsql-cluster-manager.sh
 #!/bin/bash
 
 mkdir /var/log/pgsql-cluster-manager
 
-/usr/local/bin/pgsql-cluster-manager supervise cluster \
+/usr/local/bin/pgcm supervise \
   --config-file /etc/pgsql-cluster-manager/config.toml \
-  >>/var/log/pgsql-cluster-manager/cluster.log 2>&1 &
-
-/usr/local/bin/pgsql-cluster-manager supervise migration \
-  --config-file /etc/pgsql-cluster-manager/config.toml \
-  >>/var/log/pgsql-cluster-manager/migration.log 2>&1 &
+  >>/var/log/pgsql-cluster-manager/supervise.log 2>&1 &
 
 sudo -u postgres \
-  /usr/local/bin/pgsql-cluster-manager supervise proxy \
+  /usr/local/bin/pgcm proxy \
     --config-file /etc/pgsql-cluster-manager/config.toml \
     >>/var/log/pgsql-cluster-manager/proxy.log 2>&1 &
 EOF
@@ -215,7 +211,7 @@ if [ "$(hostname -i)" == "$PG01_IP" ]; then
 fi
 
 wait_for_roles
-configure_dns # needs to happen before PGBouncer
+configure_dns # needs to happen before PgBouncer
 start_etcd
 start_pgbouncer
 start_cluster_manager

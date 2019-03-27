@@ -3,14 +3,6 @@
   unused-packages = true
 
 [[constraint]]
-  name = "github.com/go-pg/pg"
-  version = "6.4.21"
-
-[[constraint]]
-  name = "github.com/Sirupsen/logrus"
-  version = "1.0.3"
-
-[[constraint]]
   name = "github.com/stretchr/testify"
   version = "1.1.4"
 
@@ -25,3 +17,27 @@
 [[constraint]]
   name = "github.com/coreos/etcd"
   version = "3.3.3"
+
+[[constraint]]
+  name = "github.com/prometheus/client_golang"
+  version = "0.8.0"
+
+[[constraint]]
+  name = "github.com/oklog/run"
+  version = "1.0.0"
+
+[[override]]
+  name = "github.com/docker/docker"
+  revision = "a422774e593b33bd287d9890544ad9e09b380d8c"
+
+[[constraint]]
+  name = "github.com/onsi/gomega"
+  version = "1.4.1"
+
+[[override]]
+  source = "https://github.com/fsnotify/fsnotify/archive/v1.4.7.tar.gz"
+  name = "gopkg.in/fsnotify.v1"
+
+[[constraint]]
+  name = "github.com/satori/go.uuid"
+  version = "1.2.0"

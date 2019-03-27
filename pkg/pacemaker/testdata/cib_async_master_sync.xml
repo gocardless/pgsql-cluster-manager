@@ -1,0 +1,175 @@
+<cib epoch="149" num_updates="14" admin_epoch="0" validate-with="pacemaker-1.2" cib-last-written="Wed Sep 19 11:40:06 2018" update-origin="pg01" update-client="crmd" crm_feature_set="3.0.7" have-quorum="1" dc-uuid="2">
+  <configuration>
+    <crm_config>
+      <cluster_property_set id="cib-bootstrap-options">
+        <nvpair id="cib-bootstrap-options-dc-version" name="dc-version" value="1.1.10-42f2063"/>
+        <nvpair id="cib-bootstrap-options-cluster-infrastructure" name="cluster-infrastructure" value="corosync"/>
+        <nvpair name="stonith-enabled" value="true" id="cib-bootstrap-options-stonith-enabled"/>
+        <nvpair name="default-resource-stickiness" value="100" id="cib-bootstrap-options-default-resource-stickiness"/>
+        <nvpair id="cib-bootstrap-options-last-lrm-refresh" name="last-lrm-refresh" value="1537357206"/>
+        <nvpair name="maintenance-mode" value="off" id="cib-bootstrap-options-maintenance-mode"/>
+      </cluster_property_set>
+    </crm_config>
+    <nodes>
+      <node id="1" uname="pg01">
+        <instance_attributes id="nodes-1">
+          <nvpair id="nodes-1-maintenance" name="maintenance" value="off"/>
+          <nvpair id="nodes-1-Postgresql-data-status" name="Postgresql-data-status" value="STREAMING|POTENTIAL"/>
+        </instance_attributes>
+      </node>
+      <node id="2" uname="pg02">
+        <instance_attributes id="nodes-2">
+          <nvpair id="nodes-2-maintenance" name="maintenance" value="off"/>
+          <nvpair id="nodes-2-Postgresql-data-status" name="Postgresql-data-status" value="LATEST"/>
+        </instance_attributes>
+      </node>
+      <node id="3" uname="pg03">
+        <instance_attributes id="nodes-3">
+          <nvpair id="nodes-3-maintenance" name="maintenance" value="off"/>
+          <nvpair id="nodes-3-Postgresql-data-status" name="Postgresql-data-status" value="STREAMING|SYNC"/>
+        </instance_attributes>
+      </node>
+    </nodes>
+    <resources>
+      <master id="msPostgresql">
+        <instance_attributes id="msPostgresql-instance_attributes">
+          <nvpair name="master-max" value="1" id="msPostgresql-instance_attributes-master-max"/>
+          <nvpair name="master-node-max" value="1" id="msPostgresql-instance_attributes-master-node-max"/>
+          <nvpair name="clone-max" value="3" id="msPostgresql-instance_attributes-clone-max"/>
+          <nvpair name="clone-node-max" value="1" id="msPostgresql-instance_attributes-clone-node-max"/>
+          <nvpair name="notify" value="true" id="msPostgresql-instance_attributes-notify"/>
+        </instance_attributes>
+        <primitive id="Postgresql" class="ocf" provider="heartbeat" type="pgsql">
+          <instance_attributes id="Postgresql-instance_attributes">
+            <nvpair name="pgctl" value="/usr/lib/postgresql/9.4/bin/pg_ctl" id="Postgresql-instance_attributes-pgctl"/>
+            <nvpair name="psql" value="/usr/bin/psql" id="Postgresql-instance_attributes-psql"/>
+            <nvpair name="pgdata" value="/var/lib/postgresql/9.4/main/" id="Postgresql-instance_attributes-pgdata"/>
+            <nvpair name="start_opt" value="-p 5432" id="Postgresql-instance_attributes-start_opt"/>
+            <nvpair name="rep_mode" value="sync" id="Postgresql-instance_attributes-rep_mode"/>
+            <nvpair name="node_list" value="pg01 pg02 pg03" id="Postgresql-instance_attributes-node_list"/>
+            <nvpair name="primary_conninfo_opt" value="keepalives_idle=60 keepalives_interval=5       keepalives_count=5" id="Postgresql-instance_attributes-primary_conninfo_opt"/>
+            <nvpair name="repuser" value="gc_replication" id="Postgresql-instance_attributes-repuser"/>
+            <nvpair name="tmpdir" value="/var/lib/postgresql/9.4/tmp" id="Postgresql-instance_attributes-tmpdir"/>
+            <nvpair name="config" value="/etc/postgresql/9.4/main/postgresql.conf" id="Postgresql-instance_attributes-config"/>
+            <nvpair name="logfile" value="/var/log/postgresql/postgresql-crm.log" id="Postgresql-instance_attributes-logfile"/>
+            <nvpair name="restore_command" value="ssh -q -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no barman@10.164.0.14 barman get-wal prd-production-main %f &gt; %p" id="Postgresql-instance_attributes-restore_command"/>
+          </instance_attributes>
+          <operations>
+            <op name="start" timeout="60s" interval="0s" on-fail="restart" id="Postgresql-start-0s"/>
+            <op name="monitor" timeout="60s" interval="2s" on-fail="restart" id="Postgresql-monitor-2s"/>
+            <op name="monitor" timeout="60s" interval="1s" on-fail="restart" role="Master" id="Postgresql-monitor-1s"/>
+            <op name="promote" timeout="60s" interval="0s" on-fail="restart" id="Postgresql-promote-0s"/>
+            <op name="demote" timeout="60s" interval="0s" on-fail="stop" id="Postgresql-demote-0s"/>
+            <op name="stop" timeout="60s" interval="0s" on-fail="block" id="Postgresql-stop-0s"/>
+            <op name="notify" timeout="60s" interval="0s" id="Postgresql-notify-0s"/>
+          </operations>
+        </primitive>
+      </master>
+      <primitive id="shoot-pg01" class="stonith" type="external/anu-gce-stonith">
+        <instance_attributes id="shoot-pg01-instance_attributes">
+          <nvpair name="instance_name" value="pg01" id="shoot-pg01-instance_attributes-instance_name"/>
+          <nvpair name="instance_ip_address" value="10.164.0.27" id="shoot-pg01-instance_attributes-instance_ip_address"/>
+        </instance_attributes>
+      </primitive>
+      <primitive id="shoot-pg02" class="stonith" type="external/anu-gce-stonith">
+        <instance_attributes id="shoot-pg02-instance_attributes">
+          <nvpair name="instance_name" value="pg02" id="shoot-pg02-instance_attributes-instance_name"/>
+          <nvpair name="instance_ip_address" value="10.164.0.20" id="shoot-pg02-instance_attributes-instance_ip_address"/>
+        </instance_attributes>
+      </primitive>
+      <primitive id="shoot-pg03" class="stonith" type="external/anu-gce-stonith">
+        <instance_attributes id="shoot-pg03-instance_attributes">
+          <nvpair name="instance_name" value="pg03" id="shoot-pg03-instance_attributes-instance_name"/>
+          <nvpair name="instance_ip_address" value="10.164.0.21" id="shoot-pg03-instance_attributes-instance_ip_address"/>
+        </instance_attributes>
+      </primitive>
+    </resources>
+    <constraints>
+      <rsc_location id="fence_pg01" rsc="shoot-pg01" score="-INFINITY" node="pg01"/>
+      <rsc_location id="fence_pg02" rsc="shoot-pg02" score="-INFINITY" node="pg02"/>
+      <rsc_location id="fence_pg03" rsc="shoot-pg03" score="-INFINITY" node="pg03"/>
+    </constraints>
+  </configuration>
+  <status>
+    <node_state id="1" uname="pg01" in_ccm="true" crmd="online" crm-debug-origin="do_update_resource" join="member" expected="member">
+      <lrm id="1">
+        <lrm_resources>
+          <lrm_resource id="shoot-pg01" type="external/anu-gce-stonith" class="stonith">
+            <lrm_rsc_op id="shoot-pg01_last_0" operation_key="shoot-pg01_monitor_0" operation="monitor" crm-debug-origin="do_update_resource" crm_feature_set="3.0.7" transition-key="7:782:7:19ae1620-49be-4936-81f3-3bad80c68ea4" transition-magic="0:7;7:782:7:19ae1620-49be-4936-81f3-3bad80c68ea4" call-id="10" rc-code="7" op-status="0" interval="0" last-run="1537323944" last-rc-change="1537323944" exec-time="1" queue-time="0" op-digest="b454d0eee56d04e5cc0339db18f329e1"/>
+          </lrm_resource>
+          <lrm_resource id="shoot-pg02" type="external/anu-gce-stonith" class="stonith">
+            <lrm_rsc_op id="shoot-pg02_last_0" operation_key="shoot-pg02_monitor_0" operation="monitor" crm-debug-origin="do_update_resource" crm_feature_set="3.0.7" transition-key="8:782:7:19ae1620-49be-4936-81f3-3bad80c68ea4" transition-magic="0:7;8:782:7:19ae1620-49be-4936-81f3-3bad80c68ea4" call-id="14" rc-code="7" op-status="0" interval="0" last-run="1537323944" last-rc-change="1537323944" exec-time="0" queue-time="0" op-digest="e8a53a237f51a3dab9fea1bc9bc24f74"/>
+          </lrm_resource>
+          <lrm_resource id="shoot-pg03" type="external/anu-gce-stonith" class="stonith">
+            <lrm_rsc_op id="shoot-pg03_last_0" operation_key="shoot-pg03_monitor_0" operation="monitor" crm-debug-origin="do_update_resource" crm_feature_set="3.0.7" transition-key="9:782:7:19ae1620-49be-4936-81f3-3bad80c68ea4" transition-magic="0:7;9:782:7:19ae1620-49be-4936-81f3-3bad80c68ea4" call-id="18" rc-code="7" op-status="0" interval="0" last-run="1537323944" last-rc-change="1537323944" exec-time="0" queue-time="0" op-digest="08578201583554c4538fa3707cf44934"/>
+          </lrm_resource>
+          <lrm_resource id="Postgresql" type="pgsql" class="ocf" provider="heartbeat">
+            <lrm_rsc_op id="Postgresql_last_failure_0" operation_key="Postgresql_monitor_0" operation="monitor" crm-debug-origin="do_update_resource" crm_feature_set="3.0.7" transition-key="4:859:7:19ae1620-49be-4936-81f3-3bad80c68ea4" transition-magic="0:0;4:859:7:19ae1620-49be-4936-81f3-3bad80c68ea4" call-id="311" rc-code="0" op-status="0" interval="0" last-run="1537357206" last-rc-change="1537357206" exec-time="189" queue-time="0" op-digest="b04fbc1bb427bcbc7f934cf554d37109"/>
+            <lrm_rsc_op id="Postgresql_monitor_2000" operation_key="Postgresql_monitor_2000" operation="monitor" crm-debug-origin="do_update_resource" crm_feature_set="3.0.7" transition-key="8:860:0:19ae1620-49be-4936-81f3-3bad80c68ea4" transition-magic="0:0;8:860:0:19ae1620-49be-4936-81f3-3bad80c68ea4" call-id="314" rc-code="0" op-status="0" interval="2000" last-rc-change="1537357207" exec-time="151" queue-time="0" op-digest="027db11c520c88f586b0c97ee14eddeb"/>
+          </lrm_resource>
+        </lrm_resources>
+      </lrm>
+      <transient_attributes id="1">
+        <instance_attributes id="status-1">
+          <nvpair id="status-1-master-Postgresql" name="master-Postgresql" value="-INFINITY"/>
+          <nvpair id="status-1-Postgresql-status" name="Postgresql-status" value="HS:potential"/>
+          <nvpair id="status-1-probe_complete" name="probe_complete" value="true"/>
+        </instance_attributes>
+      </transient_attributes>
+    </node_state>
+    <node_state id="2" uname="pg02" in_ccm="true" crmd="online" crm-debug-origin="do_update_resource" join="member" expected="member">
+      <transient_attributes id="2">
+        <instance_attributes id="status-2">
+          <nvpair id="status-2-probe_complete" name="probe_complete" value="true"/>
+          <nvpair id="status-2-Postgresql-status" name="Postgresql-status" value="PRI"/>
+          <nvpair id="status-2-master-Postgresql" name="master-Postgresql" value="1000"/>
+          <nvpair id="status-2-Postgresql-master-baseline" name="Postgresql-master-baseline" value="00002D1F64B72930"/>
+        </instance_attributes>
+      </transient_attributes>
+      <lrm id="2">
+        <lrm_resources>
+          <lrm_resource id="shoot-pg01" type="external/anu-gce-stonith" class="stonith">
+            <lrm_rsc_op id="shoot-pg01_last_0" operation_key="shoot-pg01_start_0" operation="start" crm-debug-origin="build_active_RAs" crm_feature_set="3.0.7" transition-key="48:1:0:19ae1620-49be-4936-81f3-3bad80c68ea4" transition-magic="0:0;48:1:0:19ae1620-49be-4936-81f3-3bad80c68ea4" call-id="26" rc-code="0" op-status="0" interval="0" last-run="1536764151" last-rc-change="1536764151" exec-time="2621" queue-time="0" op-digest="b454d0eee56d04e5cc0339db18f329e1"/>
+          </lrm_resource>
+          <lrm_resource id="shoot-pg02" type="external/anu-gce-stonith" class="stonith">
+            <lrm_rsc_op id="shoot-pg02_last_0" operation_key="shoot-pg02_monitor_0" operation="monitor" crm-debug-origin="build_active_RAs" crm_feature_set="3.0.7" transition-key="11:1:7:19ae1620-49be-4936-81f3-3bad80c68ea4" transition-magic="0:7;11:1:7:19ae1620-49be-4936-81f3-3bad80c68ea4" call-id="14" rc-code="7" op-status="0" interval="0" last-run="1536764151" last-rc-change="1536764151" exec-time="0" queue-time="0" op-digest="e8a53a237f51a3dab9fea1bc9bc24f74"/>
+          </lrm_resource>
+          <lrm_resource id="shoot-pg03" type="external/anu-gce-stonith" class="stonith">
+            <lrm_rsc_op id="shoot-pg03_last_0" operation_key="shoot-pg03_start_0" operation="start" crm-debug-origin="build_active_RAs" crm_feature_set="3.0.7" transition-key="39:770:0:19ae1620-49be-4936-81f3-3bad80c68ea4" transition-magic="0:0;39:770:0:19ae1620-49be-4936-81f3-3bad80c68ea4" call-id="519" rc-code="0" op-status="0" interval="0" last-run="1537323493" last-rc-change="1537323493" exec-time="1683" queue-time="0" op-digest="08578201583554c4538fa3707cf44934"/>
+          </lrm_resource>
+          <lrm_resource id="Postgresql" type="pgsql" class="ocf" provider="heartbeat">
+            <lrm_rsc_op id="Postgresql_last_failure_0" operation_key="Postgresql_monitor_0" operation="monitor" crm-debug-origin="do_update_resource" crm_feature_set="3.0.7" transition-key="6:859:7:19ae1620-49be-4936-81f3-3bad80c68ea4" transition-magic="0:8;6:859:7:19ae1620-49be-4936-81f3-3bad80c68ea4" call-id="726" rc-code="8" op-status="0" interval="0" last-run="1537357206" last-rc-change="1537357206" exec-time="502" queue-time="0" op-digest="b04fbc1bb427bcbc7f934cf554d37109"/>
+            <lrm_rsc_op id="Postgresql_monitor_1000" operation_key="Postgresql_monitor_1000" operation="monitor" crm-debug-origin="do_update_resource" crm_feature_set="3.0.7" transition-key="13:860:8:19ae1620-49be-4936-81f3-3bad80c68ea4" transition-magic="0:8;13:860:8:19ae1620-49be-4936-81f3-3bad80c68ea4" call-id="729" rc-code="8" op-status="0" interval="1000" last-rc-change="1537357207" exec-time="461" queue-time="0" op-digest="027db11c520c88f586b0c97ee14eddeb"/>
+          </lrm_resource>
+        </lrm_resources>
+      </lrm>
+    </node_state>
+    <node_state id="3" uname="pg03" in_ccm="true" crmd="online" crm-debug-origin="do_update_resource" join="member" expected="member">
+      <lrm id="3">
+        <lrm_resources>
+          <lrm_resource id="shoot-pg01" type="external/anu-gce-stonith" class="stonith">
+            <lrm_rsc_op id="shoot-pg01_last_0" operation_key="shoot-pg01_monitor_0" operation="monitor" crm-debug-origin="do_update_resource" crm_feature_set="3.0.7" transition-key="15:1:7:19ae1620-49be-4936-81f3-3bad80c68ea4" transition-magic="0:7;15:1:7:19ae1620-49be-4936-81f3-3bad80c68ea4" call-id="10" rc-code="7" op-status="0" interval="0" last-run="1536764150" last-rc-change="1536764150" exec-time="1991" queue-time="0" op-digest="b454d0eee56d04e5cc0339db18f329e1"/>
+          </lrm_resource>
+          <lrm_resource id="shoot-pg02" type="external/anu-gce-stonith" class="stonith">
+            <lrm_rsc_op id="shoot-pg02_last_0" operation_key="shoot-pg02_start_0" operation="start" crm-debug-origin="do_update_resource" crm_feature_set="3.0.7" transition-key="38:770:0:19ae1620-49be-4936-81f3-3bad80c68ea4" transition-magic="0:0;38:770:0:19ae1620-49be-4936-81f3-3bad80c68ea4" call-id="459" rc-code="0" op-status="0" interval="0" last-run="1537323493" last-rc-change="1537323493" exec-time="1472" queue-time="1" op-digest="e8a53a237f51a3dab9fea1bc9bc24f74"/>
+          </lrm_resource>
+          <lrm_resource id="shoot-pg03" type="external/anu-gce-stonith" class="stonith">
+            <lrm_rsc_op id="shoot-pg03_last_0" operation_key="shoot-pg03_monitor_0" operation="monitor" crm-debug-origin="do_update_resource" crm_feature_set="3.0.7" transition-key="17:1:7:19ae1620-49be-4936-81f3-3bad80c68ea4" transition-magic="0:7;17:1:7:19ae1620-49be-4936-81f3-3bad80c68ea4" call-id="18" rc-code="7" op-status="0" interval="0" last-run="1536764151" last-rc-change="1536764151" exec-time="0" queue-time="0" op-digest="08578201583554c4538fa3707cf44934"/>
+          </lrm_resource>
+          <lrm_resource id="Postgresql" type="pgsql" class="ocf" provider="heartbeat">
+            <lrm_rsc_op id="Postgresql_last_failure_0" operation_key="Postgresql_monitor_0" operation="monitor" crm-debug-origin="do_update_resource" crm_feature_set="3.0.7" transition-key="8:859:7:19ae1620-49be-4936-81f3-3bad80c68ea4" transition-magic="0:0;8:859:7:19ae1620-49be-4936-81f3-3bad80c68ea4" call-id="664" rc-code="0" op-status="0" interval="0" last-run="1537357206" last-rc-change="1537357206" exec-time="294" queue-time="0" op-digest="b04fbc1bb427bcbc7f934cf554d37109"/>
+            <lrm_rsc_op id="Postgresql_monitor_2000" operation_key="Postgresql_monitor_2000" operation="monitor" crm-debug-origin="do_update_resource" crm_feature_set="3.0.7" transition-key="16:860:0:19ae1620-49be-4936-81f3-3bad80c68ea4" transition-magic="0:0;16:860:0:19ae1620-49be-4936-81f3-3bad80c68ea4" call-id="667" rc-code="0" op-status="0" interval="2000" last-rc-change="1537357207" exec-time="196" queue-time="0" op-digest="027db11c520c88f586b0c97ee14eddeb"/>
+          </lrm_resource>
+        </lrm_resources>
+      </lrm>
+      <transient_attributes id="3">
+        <instance_attributes id="status-3">
+          <nvpair id="status-3-probe_complete" name="probe_complete" value="true"/>
+          <nvpair id="status-3-Postgresql-status" name="Postgresql-status" value="HS:sync"/>
+          <nvpair id="status-3-master-Postgresql" name="master-Postgresql" value="100"/>
+          <nvpair id="status-3-Postgresql-xlog-loc" name="Postgresql-xlog-loc" value="00002D2E4AB94D58"/>
+        </instance_attributes>
+      </transient_attributes>
+    </node_state>
+  </status>
+</cib>

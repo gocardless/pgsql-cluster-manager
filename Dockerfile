@@ -24,16 +24,25 @@ RUN set -x \
         pgbouncer="${PGBOUNCER_VERSION}" \
         corosync \
         pacemaker \
-        golang-1.9-go \
-    && ln -s /usr/lib/go-1.9/bin/go /usr/bin/go \
     && apt-get clean -y \
     && rm -rf /var/lib/apt/lists/*
 
-ENV ETCD_VERSION=v3.2.6
-RUN curl \
+ENV ETCD_VERSION=v3.3.9
+RUN set -x \
+    && curl \
       -L https://storage.googleapis.com/etcd/${ETCD_VERSION}/etcd-${ETCD_VERSION}-linux-amd64.tar.gz \
-      -o /tmp/etcd-linux-amd64.tar.gz && \
-  mkdir /tmp/etcd && \
-  tar xzvf /tmp/etcd-linux-amd64.tar.gz -C /tmp/etcd --strip-components=1 && \
-  sudo mv -v /tmp/etcd/etcd /tmp/etcd/etcdctl /usr/bin/ && \
-  rm -rfv /tmp/etcd-linux-amd64.tar.gz /tmp/etcd
+      -o /tmp/etcd-linux-amd64.tar.gz \
+    && mkdir /tmp/etcd \
+    && tar xzvf /tmp/etcd-linux-amd64.tar.gz -C /tmp/etcd --strip-components=1 \
+    && sudo mv -v /tmp/etcd/etcd /tmp/etcd/etcdctl /usr/bin/ \
+    && rm -rfv /tmp/etcd-linux-amd64.tar.gz /tmp/etcd
+
+# etcd tries reading this environment variable when booting, and an invalid
+# format will cause etcd to fail when booting. Unset the variable to avoid this
+# terrible design decision.
+ENV ETCD_VERSION=
+
+ENV GO_VERSION=1.11
+RUN set -x \
+    && mkdir -p /go \
+    && curl -L https://dl.google.com/go/go${GO_VERSION}.linux-amd64.tar.gz | tar xzf - -C /go --strip-components=1
