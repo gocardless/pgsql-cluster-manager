@@ -6,6 +6,7 @@ import (
 
 	"github.com/coreos/etcd/mvcc/mvccpb"
 	kitlog "github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 )
 
 type Operation func(context.Context, *mvccpb.KeyValue) error
@@ -21,7 +22,7 @@ type RetryFoldOptions struct {
 // them, retrying that operation ad-infinitum in case of errors.
 func RetryFold(logger kitlog.Logger, in <-chan *mvccpb.KeyValue, opt RetryFoldOptions, op Operation) error {
 	for kv := range in {
-		logger := withKv(logger, kv)
+		logger := level.Debug(withKv(logger, kv))
 
 	NextAttempt:
 		logger.Log("event", "operation.run")
