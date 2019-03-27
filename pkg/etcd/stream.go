@@ -61,40 +61,32 @@ func NewStream(logger kitlog.Logger, client etcdGetter, opt StreamOptions) (<-ch
 		defer cancel()
 		defer wg.Done()
 
-		ticker := time.NewTicker(opt.PollInterval)
+	Poll:
+		logger.Log("event", "poll.start")
+		for _, key := range opt.Keys {
+			getCtx, getCtxCancel := context.WithTimeout(ctx, opt.GetTimeout)
+			resp, err := client.Get(getCtx, key)
+			getCtxCancel()
 
-		// Stop the ticker whenever we return from this block, or when our context has expired
-		defer ticker.Stop()
-		go func() { <-ctx.Done(); ticker.Stop() }()
-
-		// Run once on inception, then once again for every tick
-		for ; true; <-ticker.C {
-			select {
-			case <-ctx.Done():
-				logger.Log("event", "poll.stop", "msg", "channel closed, stopping stream")
-				return
-			default:
+			if err != nil {
+				logger.Log("event", "poll.error", "key", key)
+				continue
 			}
 
-			logger.Log("event", "poll.start")
-			for _, key := range opt.Keys {
-				getCtx, getCtxCancel := context.WithTimeout(ctx, opt.GetTimeout)
-				resp, err := client.Get(getCtx, key)
-				getCtxCancel()
-
-				if err != nil {
-					logger.Log("event", "poll.error", "key", key)
-					continue
-				}
-
-				if len(resp.Kvs) == 0 {
-					logger.Log("event", "poll.missing_etcd_value", "key", key,
-						"msg", "key has no value (is supervise running?)")
-					continue
-				}
-
-				out <- resp.Kvs[0]
+			if len(resp.Kvs) == 0 {
+				logger.Log("event", "poll.missing_etcd_value", "key", key,
+					"msg", "key has no value (is supervise running?)")
+				continue
 			}
+
+			out <- resp.Kvs[0]
+		}
+
+		select {
+		case <-ctx.Done():
+			logger.Log("event", "poll.stop", "msg", "context expired, stopping stream")
+		case <-time.After(opt.PollInterval):
+			goto Poll
 		}
 	}()
 
