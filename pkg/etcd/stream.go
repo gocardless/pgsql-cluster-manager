@@ -62,7 +62,10 @@ func NewStream(logger kitlog.Logger, client etcdGetter, opt StreamOptions) (<-ch
 		defer wg.Done()
 
 		ticker := time.NewTicker(opt.PollInterval)
+
+		// Stop the ticker whenever we return from this block, or when our context has expired
 		defer ticker.Stop()
+		go func() { <-ctx.Done(); ticker.Stop() }()
 
 		// Run once on inception, then once again for every tick
 		for ; true; <-ticker.C {
@@ -93,8 +96,6 @@ func NewStream(logger kitlog.Logger, client etcdGetter, opt StreamOptions) (<-ch
 				out <- resp.Kvs[0]
 			}
 		}
-
-		logger.Log("event", "oh no")
 	}()
 
 	// Notify the done channel once the wait group completes
