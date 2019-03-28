@@ -9,12 +9,10 @@ RUN set -x \
         software-properties-common \
         build-essential \
         curl \
-        ruby-dev \
         wget \
         docker.io \
     && wget https://github.com/Yelp/dumb-init/releases/download/v1.2.0/dumb-init_1.2.0_amd64.deb \
     && dpkg -i dumb-init_*.deb && rm dumb-init_*.deb \
-    && gem install bundler \
     && add-apt-repository ppa:gophers/archive \
     && echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main\ndeb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg 9.4" > /etc/apt/sources.list.d/pgdg.list \
       && curl --silent -L https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - \
