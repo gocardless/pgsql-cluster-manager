@@ -56,22 +56,81 @@ var _ = Describe("PgBouncer", func() {
 		return string(logs)
 	}
 
-	Describe("ShowDatabases", func() {
-		It("Correctly parses databases", func() {
-			databases, err := bouncer.ShowDatabases(ctx)
+	connectToDatabase := func() (*pgx.Conn, error) {
+		executor := bouncer.Executor.(pgbouncer.AuthorizedExecutor)
+		return pgx.Connect(
+			pgx.ConnConfig{
+				Host:     executor.SocketDir,
+				Port:     6432,
+				Database: database,
+				User:     user,
+			},
+		)
+	}
 
-			Expect(err).NotTo(HaveOccurred())
-			Expect(databases).To(ConsistOf(
-				pgbouncer.Database{
-					Name: "pgbouncer",
-					Port: "6432",
-				},
-				pgbouncer.Database{
-					Name: database,
-					Port: port,
-					Host: "{{.Host}}", // this is the initial config value
-				},
-			))
+	mustConnectToDatabase := func() *pgx.Conn {
+		conn, err := connectToDatabase()
+
+		Expect(err).NotTo(HaveOccurred())
+		return conn
+	}
+
+	Context("Pointed at the integration database", func() {
+		BeforeEach(func() {
+			// Point the PgBouncer configuration at our integration Postgres database
+			Expect(bouncer.GenerateConfig(host)).To(Succeed())
+			Expect(bouncer.Reload(ctx)).To(Succeed())
+		})
+
+		Describe("ShowDatabases", func() {
+			It("Correctly parses databases", func() {
+				// Create a connection so we can validate the CurrentConnections value
+				conn := mustConnectToDatabase()
+				defer conn.Close()
+
+				databases, err := bouncer.ShowDatabases(ctx)
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(databases).To(ConsistOf(
+					pgbouncer.Database{
+						Name: "pgbouncer",
+						Port: "6432",
+					},
+					pgbouncer.Database{
+						Name: database,
+						Port: port,
+						Host: host,
+
+						// We expect to see a single connection from the one we created at the start of
+						// our test.
+						CurrentConnections: 1,
+					},
+				))
+			})
+		})
+
+		Describe("Disable", func() {
+			It("Prevents new client connections", func() {
+				// Create a connection prior to the disable so we can check the bahviour
+				// post-operation
+				original := mustConnectToDatabase()
+				defer original.Close()
+
+				Expect(bouncer.Disable(ctx)).To(Succeed())
+
+				// This connection should never succeed, as we've asked to disable new attempts
+				_, err := connectToDatabase()
+				Expect(err).To(BeAssignableToTypeOf(pgx.PgError{}))
+
+				if err, ok := err.(pgx.PgError); ok {
+					Expect(err.Code).To(Equal(pgbouncer.PoolerError))
+					Expect(err.Message).To(ContainSubstring("database does not allow connections"))
+				}
+
+				// Our original connection should still be functional, as disable affects only new
+				// connections
+				Expect(original.ExecEx(ctx, "select now()", nil)).NotTo(BeNil())
+			})
 		})
 	})
 
@@ -112,27 +171,12 @@ var _ = Describe("PgBouncer", func() {
 		})
 
 		Context("When session is blocking pause", func() {
-			connectToDatabase := func() *pgx.Conn {
-				executor := bouncer.Executor.(pgbouncer.AuthorizedExecutor)
-				conn, err := pgx.Connect(
-					pgx.ConnConfig{
-						Host:     executor.SocketDir,
-						Port:     6432,
-						Database: database,
-						User:     user,
-					},
-				)
-
-				Expect(err).NotTo(HaveOccurred())
-				return conn
-			}
-
 			It("Times out and resumes", func() {
 				// Point the PgBouncer configuration at our integration Postgres database
 				Expect(bouncer.GenerateConfig(host)).To(Succeed())
 				Expect(bouncer.Reload(ctx)).To(Succeed())
 
-				conn := connectToDatabase()
+				conn := mustConnectToDatabase()
 				defer conn.Close()
 
 				// Establish a session pooled connection, which should prevent PgBouncer from
@@ -146,7 +190,7 @@ var _ = Describe("PgBouncer", func() {
 				Expect(bouncer.Pause(timeoutCtx)).To(MatchError("context deadline exceeded"))
 
 				// New commands that come to the database
-				anotherConn := connectToDatabase()
+				anotherConn := mustConnectToDatabase()
 				defer anotherConn.Close()
 
 				Expect(conn.ExecEx(ctx, "select now()", nil)).NotTo(BeNil())
