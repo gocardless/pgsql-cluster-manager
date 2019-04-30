@@ -28,19 +28,19 @@ clean:
 	rm -rvf dist $(PROG) $(PROG:%=%.linux_amd64)
 
 docker-base: Dockerfile
-	docker build -t gocardless/pgsql-cluster-manager-base:v1 .
+	docker build -t gocardless/pgsql-cluster-manager-base:2019043001 .
 
 docker-postgres-member: docker/postgres-member/Dockerfile
-	docker build -t gocardless/postgres-member:v1 docker/postgres-member
+	docker build -t gocardless/postgres-member:2019043001 docker/postgres-member
 
 docker-circleci: .circleci/Dockerfile
-	docker build -t gocardless/pgsql-cluster-manager-circleci:v1 .circleci
+	docker build -t gocardless/pgsql-cluster-manager-circleci:2019043001 .circleci
 
 publish-base: docker-base
-	docker push gocardless/pgsql-cluster-manager-base:v1
+	docker push gocardless/pgsql-cluster-manager-base:2019043001
 
 publish-postgres-member: docker-postgres-member
-	docker push gocardless/postgres-member:v1
+	docker push gocardless/postgres-member:2019043001
 
 publish-circleci: docker-circleci
-	docker push gocardless/pgsql-cluster-manager-circleci:v1
+	docker push gocardless/pgsql-cluster-manager-circleci:2019043001

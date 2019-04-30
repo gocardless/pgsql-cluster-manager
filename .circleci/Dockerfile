@@ -1,5 +1,5 @@
 # Configures our base image for running tests in CircleCI
-FROM gocardless/pgsql-cluster-manager-base
+FROM gocardless/pgsql-cluster-manager-base:2019043001
 
 # Install docker client, required to use Docker in Circle
 RUN set -x \

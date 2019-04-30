@@ -19,7 +19,7 @@ import (
 var (
 	app         = kingpin.New("pgcm-acceptance", "Acceptance test suite for pgsql-cluster-manager").Version("0.0.0")
 	workspace   = app.Flag("workspace", "Path to pgsql-cluster-manager workspace").Default(".").ExistingDir()
-	dockerImage = app.Flag("docker-image", "Image to use for testing (postgres members").Default("gocardless/postgres-member:v1").String()
+	dockerImage = app.Flag("docker-image", "Image to use for testing (postgres members").Default("gocardless/postgres-member:2019043001").String()
 )
 
 func main() {
