@@ -112,11 +112,11 @@ function configure_pacemaker() {
 property stonith-enabled=true
 property default-resource-stickiness=100
 primitive Postgresql ocf:heartbeat:pgsql \
-    params pgctl="/usr/lib/postgresql/9.4/bin/pg_ctl" psql="/usr/bin/psql" \
-    pgdata="/var/lib/postgresql/9.4/main/" start_opt="-p 5432" rep_mode="sync" \
+    params pgctl="/usr/lib/postgresql/11/bin/pg_ctl" psql="/usr/bin/psql" \
+    pgdata="/var/lib/postgresql/11/main/" start_opt="-p 5432" rep_mode="sync" \
     node_list="pg01 pg02 pg03" primary_conninfo_opt="keepalives_idle=60 keepalives_interval=5 \
-    keepalives_count=5" repuser="postgres" tmpdir="/var/lib/postgresql/9.4/tmp" \
-    config="/etc/postgresql/9.4/main/postgresql.conf" \
+    keepalives_count=5" repuser="postgres" tmpdir="/var/lib/postgresql/11/tmp" \
+    config="/etc/postgresql/11/main/postgresql.conf" \
     logfile="/var/log/postgresql/postgresql-crm.log" restore_command="exit 0" \
     op start timeout="60s" interval="0s" on-fail="restart" \
     op monitor timeout="60s" interval="2s" on-fail="restart" \

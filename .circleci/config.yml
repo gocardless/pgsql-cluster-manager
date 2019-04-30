@@ -20,7 +20,7 @@ jobs:
       - run:
           name: Start Postgres
           command: |
-            pg_ctlcluster 9.4 main start
+            pg_ctlcluster 11 main start
             sudo -u postgres psql -U postgres -c "alter user postgres with password 'password';"
       - run:
           name: Run unit tests

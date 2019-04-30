@@ -1,11 +1,11 @@
 # Runs on-top of the pgsql-cluster-manager-base image to install an appropriate test
 # Postgres setup
-FROM gocardless/pgsql-cluster-manager-base:v1
+FROM gocardless/pgsql-cluster-manager-base:2019043001
 
 # Install Postgres configuration, including an empty data directory
-RUN rm -rf /var/lib/postgresql/9.4/main
-ADD main.tar.gz /var/lib/postgresql/9.4/
-COPY postgres/postgresql.conf postgres/pg_hba.conf /etc/postgresql/9.4/main/
+RUN rm -rf /var/lib/postgresql/11/main
+ADD main.tar.gz /var/lib/postgresql/11/
+COPY postgres/postgresql.conf postgres/pg_hba.conf /etc/postgresql/11/main/
 
 # Set PgBouncer to trust mode on everything- we don't care about authentication in our
 # tests

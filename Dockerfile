@@ -2,7 +2,7 @@
 # pgsql-cluster-manager and also running integration test environments.
 FROM ubuntu:trusty
 
-ENV POSTGRESQL_VERSION=9.4 PGBOUNCER_VERSION=1.9.0-*
+ENV POSTGRESQL_VERSION=11 PGBOUNCER_VERSION=1.9.0-*
 RUN set -x \
     && apt-get update \
     && apt-get install -y \
@@ -14,7 +14,7 @@ RUN set -x \
     && wget https://github.com/Yelp/dumb-init/releases/download/v1.2.0/dumb-init_1.2.0_amd64.deb \
     && dpkg -i dumb-init_*.deb && rm dumb-init_*.deb \
     && add-apt-repository ppa:gophers/archive \
-    && echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main\ndeb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg 9.4" > /etc/apt/sources.list.d/pgdg.list \
+    && echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main\ndeb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg 11" > /etc/apt/sources.list.d/pgdg.list \
       && curl --silent -L https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - \
     && apt-get update -y \
     && apt-get install -y \
